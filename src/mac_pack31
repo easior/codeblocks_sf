@@ -1,0 +1,125 @@
+#!/bin/bash
+
+#THE_ROOT=/Users/junqihu/Deverloper/CodeBlocks-SVN/src
+THE_ROOT=$(pwd )
+APP_ROOT=$THE_ROOT/CodeBlocks.app
+CONT_ROOT=$APP_ROOT/Contents
+MACOS_ROOT=$CONT_ROOT/MacOS
+RES_ROOT=$CONT_ROOT/Resources
+BIN_ROOT=$THE_ROOT/output31
+SHR_ROOT=$BIN_ROOT/share/codeblocks
+LIB_ROOT=$THE_ROOT/output31
+ICO_ROOT=$THE_ROOT/src/resources/icons
+#WX_ROOT=/usr/lib
+WX_ROOT=/Users/junqihu/Developer/wxWidgets/cocoabuild/lib
+FRAMEWORK_ROOT=$CONT_ROOT/Frameworks
+PLIST_ROOT=$THE_ROOT/build_tools
+
+echo Removing old App package...
+if [ -d "$APP_ROOT" ]; then
+  rm -r $APP_ROOT
+fi
+echo Making directories...
+mkdir -p $APP_ROOT
+mkdir -p $MACOS_ROOT
+mkdir -p $RES_ROOT
+mkdir -p $RES_ROOT/share/codeblocks
+mkdir -p $FRAMEWORK_ROOT
+
+echo MAC root is $MACOS_ROOT
+#echo WX  root is $WX_ROOT
+echo BIN root is $BIN_ROOT
+echo SHR root is $SHR_ROOT
+echo LIB root is $LIB_ROOT
+
+echo Copying files...
+cp -f $PLIST_ROOT/Info.plist        $CONT_ROOT
+cp -f $WX_ROOT/libwx_osx_cocoau-3.1.1.0.0.dylib $FRAMEWORK_ROOT
+cp -f $BIN_ROOT/codeblocks          $MACOS_ROOT/CodeBlocks
+cp -f $BIN_ROOT/cb_console_runner   $MACOS_ROOT
+# Optional executables:
+if [ -f "$BIN_ROOT/cb_share_config" ]; then
+  cp -f $BIN_ROOT/cb_share_config   $MACOS_ROOT
+fi
+if [ -f "$BIN_ROOT/codesnippets" ]; then
+  cp -f $BIN_ROOT/codesnippets      $MACOS_ROOT
+fi
+if [ -f "$BIN_ROOT/cbp2make" ]; then
+  cp -f $BIN_ROOT/cbp2make      $MACOS_ROOT
+fi
+# all libs (including the ones processed below)
+cp -f $LIB_ROOT/*.dylib $MACOS_ROOT
+
+cd $FRAMEWORK_ROOT
+install_name_tool -id @executable_path/../Frameworks/libwx_osx_cocoau-3.1.1.0.0.dylib libwx_osx_cocoau-3.1.1.0.0.dylib
+
+cd $MACOS_ROOT
+# @executable_path is a relative path to the location of foo.app,
+# it points /somewhere/foo.app/Contents/MacOS
+echo Running install_name_tool...
+for filenameinecpt in `basename $(find . -iname '*.dylib')`; do
+    install_name_tool -id @executable_path/$filenameinecpt $filenameinecpt
+    install_name_tool -change $WX_ROOT/libwx_osx_cocoau-3.1.1.0.0.dylib @executable_path/../Frameworks/libwx_osx_cocoau-3.1.1.0.0.dylib $filenameinecpt
+done
+
+install_name_tool -change devel31/libcodeblocks.dylib @executable_path/libcodeblocks.dylib codeblocks
+install_name_tool -change $WX_ROOT/libwx_osx_cocoau-3.1.1.0.0.dylib @executable_path/../Frameworks/libwx_osx_cocoau-3.1.1.0.0.dylib codeblocks
+
+echo Looping lib*.dylib files in MacOS...
+for dy_lib in $MACOS_ROOT/lib*.dylib
+do
+  install_name_tool -change $LIB_ROOT/libcodeblocks.dylib @executable_path/libcodeblocks.dylib $dy_lib
+  install_name_tool -change devel31/libcodeblocks.dylib @executable_path/libcodeblocks.dylib $dy_lib
+done
+
+if [ -f cb_share_config ]; then
+    install_name_tool -change $WX_ROOT/libwx_osx_cocoau-3.1.1.0.0.dylib @executable_path/../Frameworks/libwx_osx_cocoau-3.1.1.0.0.dylib cb_share_config
+fi
+
+echo Copying shared files...
+cp -fR $SHR_ROOT/        $RES_ROOT/share/codeblocks
+echo Copying icons...
+cp -f  $ICO_ROOT/*.icns  $RES_ROOT
+
+echo Looping *.dylib files...
+# This is actually a bug in plugin manager:
+# Under MacOS it does not look into the plugin folder, but codeblocks.
+# So move the plugins to a place where they will be found
+#mv $RES_ROOT/share/codeblocks/plugins/*.dylib $RES_ROOT/share/codeblocks
+#for dy_lib in $RES_ROOT/share/codeblocks/*.dylib
+for dy_lib in $RES_ROOT/share/codeblocks/plugins/*.dylib; do
+    install_name_tool -change $WX_ROOT/libwx_osx_cocoau-3.1.1.0.0.dylib @executable_path/../Frameworks/libwx_osx_cocoau-3.1.1.0.0.dylib $dy_lib
+    install_name_tool -change devel31/libcodeblocks.dylib @executable_path/libcodeblocks.dylib $dy_lib
+    filename=`basename $dy_lib`
+    install_name_tool -id @executable_path/../Resources/share/codeblocks/plugins/$filename $dy_lib
+done
+if [ -f $RES_ROOT/share/codeblocks/plugins/liblib_finder.dylib ]; then
+install_name_tool -change ../../../devel31/libwxflatnotebook.dylib @executable_path/libwxflatnotebook.dylib $RES_ROOT/share/codeblocks/plugins/liblib_finder.dylib
+fi
+if [ -f $RES_ROOT/share/codeblocks/plugins/ThreadSearch.dylib ]; then
+install_name_tool -change ../../../devel31/libwxcustombutton.dylib @executable_path/libwxcustombutton.dylib $RES_ROOT/share/codeblocks/plugins/ThreadSearch.dylib
+fi
+if [ -f ../../../devel31/libwxsmithlib.dylib ]; then
+install_name_tool -change ../../../devel31/libwxsmithlib.dylib @executable_path/libwxsmithlib.dylib $RES_ROOT/share/codeblocks/plugins/wxsmith.dylib
+fi
+if [ -f $RES_ROOT/share/codeblocks/plugins/wxSmithAui.dylib ]; then
+install_name_tool -change ../../../devel31/libwxsmithlib.dylib @executable_path/libwxsmithlib.dylib $RES_ROOT/share/codeblocks/plugins/wxSmithAui.dylib
+fi
+
+for filenameinecpt in `basename $(find . -iname '*.dylib')`; do
+    install_name_tool -change ../../../devel31/$filenameinecpt @executable_path/$filenameinecpt $RES_ROOT/share/codeblocks/plugins/wxSmithContribItems.dylib
+done
+
+# Spellcheck.dylib
+
+THE_ROOT=
+APP_ROOT=
+CONT_ROOT=
+MACOS_ROOT=
+RES_ROOT=
+BIN_ROOT=
+SHR_ROOT=
+LIB_ROOT=
+ICO_ROOT=
+WX_ROOT=
+PLIST_ROOT=

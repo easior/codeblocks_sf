@@ -6,6 +6,7 @@
 		<Project filename="plugins/contrib/wxContribItems/wxContribItems_wx31-mac.cbp" />
 		<Project filename="plugins/contrib/wxSmith/wxSmith_wx31-mac.cbp" />
 		<Project filename="plugins/contrib/wxSmithContribItems/wxSmithContribItems_wx31-mac.cbp">
+			<Depends filename="plugins/contrib/wxSmith/lib_finder/lib_finder_wx31-mac.cbp" />
 			<Depends filename="plugins/contrib/wxSmith/wxSmith_wx31-mac.cbp" />
 		</Project>
 		<Project filename="plugins/contrib/AutoVersioning/AutoVersioning_wx31-mac.cbp" />

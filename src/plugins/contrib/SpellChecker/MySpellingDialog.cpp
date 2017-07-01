@@ -23,25 +23,25 @@
 //#include "resource.h"
 namespace
 {
-    const int IDC_TEXT_MISSPELLED_WORD       = wxNewId();
-    const int IDC_BUTTON_RECHECK_PAGE        = wxNewId();
-    const int IDC_TEXT_REPLACE_WITH          = wxNewId();
-    const int IDC_BUTTON_CHECK_WORD          = wxNewId();
-    const int IDC_LIST_SUGGESTIONS           = wxNewId();
-    const int IDC_BUTTON_REPLACE_WORD        = wxNewId();
-    const int IDC_BUTTON_IGNORE_WORD         = wxNewId();
-    const int IDC_BUTTON_REPLACE_ALL         = wxNewId();
-    const int IDC_BUTTON_IGNORE_ALL          = wxNewId();
-    const int IDC_BUTTON_ADD_WORD            = wxNewId();
-    const int IDC_BUTTON_EDIT_CUSTOM_DICT    = wxNewId();
-    const int IDC_STATIC_LANGUAGE            = wxNewId();
-    const int IDC_CHOICE_LANGUAGE            = wxNewId();
-    const int IDC_TEXT_CONTEXT               = wxNewId();
-    const int IDC_TEXT_NEW_PERSONAL_WORD     = wxNewId();
-    const int IDC_LIST_PERSONAL_WORDS        = wxNewId();
-    const int IDC_BUTTON_ADD_TO_DICT         = wxNewId();
-    const int IDC_BUTTON_REPLACE_IN_DICT     = wxNewId();
-    const int IDC_BUTTON_REMOVE_FROM_DICT    = wxNewId();
+const int IDC_TEXT_MISSPELLED_WORD       = wxNewId();
+const int IDC_BUTTON_RECHECK_PAGE        = wxNewId();
+const int IDC_TEXT_REPLACE_WITH          = wxNewId();
+const int IDC_BUTTON_CHECK_WORD          = wxNewId();
+const int IDC_LIST_SUGGESTIONS           = wxNewId();
+const int IDC_BUTTON_REPLACE_WORD        = wxNewId();
+const int IDC_BUTTON_IGNORE_WORD         = wxNewId();
+const int IDC_BUTTON_REPLACE_ALL         = wxNewId();
+const int IDC_BUTTON_IGNORE_ALL          = wxNewId();
+const int IDC_BUTTON_ADD_WORD            = wxNewId();
+const int IDC_BUTTON_EDIT_CUSTOM_DICT    = wxNewId();
+const int IDC_STATIC_LANGUAGE            = wxNewId();
+const int IDC_CHOICE_LANGUAGE            = wxNewId();
+const int IDC_TEXT_CONTEXT               = wxNewId();
+const int IDC_TEXT_NEW_PERSONAL_WORD     = wxNewId();
+const int IDC_LIST_PERSONAL_WORDS        = wxNewId();
+const int IDC_BUTTON_ADD_TO_DICT         = wxNewId();
+const int IDC_BUTTON_REPLACE_IN_DICT     = wxNewId();
+const int IDC_BUTTON_REMOVE_FROM_DICT    = wxNewId();
 }
 
 // ----------------------------------------------------------------------------
@@ -138,7 +138,7 @@ void MySpellingDialog::CreateDialog()
     pTopSizer->Add(pBottomRowSizer, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
 
     // Add a context section
-    pTopSizer->Add(new wxTextCtrl(this, IDC_TEXT_CONTEXT, _T(""), wxDefaultPosition, wxSize(320,100), wxTE_MULTILINE | wxTE_READONLY /*| wxTE_NOHIDESEL | wxTE_RICH2*/ ), 0, wxEXPAND);
+    pTopSizer->Add(new wxTextCtrl(this, IDC_TEXT_CONTEXT, _T(""), wxDefaultPosition, wxSize(320,100), wxTE_MULTILINE | wxTE_READONLY | wxTE_NOHIDESEL | wxTE_RICH2 ), 0, wxEXPAND);
 
     // Now attach the main sizer to the window
     SetSizer(pTopSizer);

@@ -3170,7 +3170,7 @@ struct EditorSelection
     }
 };
 
-void SelectNext(cbStyledTextCtrl *control, const wxString &selectedText, long selectionEnd, bool reversed)
+bool SelectNext(cbStyledTextCtrl *control, const wxString &selectedText, long selectionEnd, bool reversed)
 {
     // always match case and try to match whole words if they have no special characters
     int flag = wxSCI_FIND_MATCHCASE;
@@ -3189,9 +3189,13 @@ void SelectNext(cbStyledTextCtrl *control, const wxString &selectedText, long se
         else
             control->AddSelection(pos + lengthFound, pos);
         control->MakeNearbyLinesVisible(control->LineFromPosition(pos));
+        return true;
     }
     else
+    {
         InfoWindow::Display(_("Select Next Occurrence"), _("No more available"));
+        return false;
+    }
 }
 
 bool GetSelectionInEditor(EditorSelection &selection, cbStyledTextCtrl *control)
@@ -3218,10 +3222,20 @@ void MainFrame::OnEditSelectNext(cb_unused wxCommandEvent& event)
     cbStyledTextCtrl *control = static_cast<cbEditor*>(eb)->GetControl();
 
     EditorSelection selection;
-    if (GetSelectionInEditor(selection, control) && !selection.Empty())
+    if (!GetSelectionInEditor(selection, control))
+        return;
+
+    if (!selection.Empty())
     {
         const wxString &selectedText(control->GetTextRange(selection.GetStart(), selection.GetEnd()));
         SelectNext(control, selectedText, selection.GetEnd(), selection.IsReversed());
+    }
+    else
+    {
+        // Select word at the cursor position if there is nothing selected.
+        const int start = control->WordStartPosition(selection.caret, true);
+        const int end = control->WordEndPosition(selection.caret, true);
+        control->SetSelection(start, end);
     }
 }
 
@@ -3238,6 +3252,14 @@ void MainFrame::OnEditSelectNextSkip(cb_unused wxCommandEvent& event)
 
     ConfigManager *cfgEditor = Manager::Get()->GetConfigManager(wxT("editor"));
     bool highlightOccurrences = cfgEditor->ReadBool(wxT("/highlight_occurrence/enabled"), true);
+
+    // Select the next occurrence first. This prevents a cursor created at the beginning of the
+    // file when the user uses the command when there is a single selection. Scintilla always makes
+    // sure that there is at least one selection/cursor. So if we clear all selections it creates a
+    // cursor at the beginning of the file.
+    const wxString &selectedText(control->GetTextRange(selection.GetStart(), selection.GetEnd()));
+    if (!SelectNext(control, selectedText, selection.GetEnd(), selection.IsReversed()))
+        return; // If there is no new selection don't deselect the current one.
 
     // store the selections in a vector except for the current one
     typedef std::vector<EditorSelection> Selections;
@@ -3273,9 +3295,6 @@ void MainFrame::OnEditSelectNextSkip(cb_unused wxCommandEvent& event)
         control->AddSelection(it->caret, it->anchor);
         ++index;
     }
-
-    const wxString &selectedText(control->GetTextRange(selection.GetStart(), selection.GetEnd()));
-    SelectNext(control, selectedText, selection.GetEnd(), selection.IsReversed());
 }
 
 /* This is a shameless rip-off of the original OnEditCommentSelected function,
@@ -4102,7 +4121,8 @@ void MainFrame::OnEditMenuUpdateUI(wxUpdateUIEvent& event)
     mbar->Enable(idEditGotoMatchingBrace,     ed);
     mbar->Enable(idEditHighlightMode,         ed);
     mbar->Enable(idEditSelectAll,             canSelAll);
-    mbar->Enable(idEditSelectNext,            hasSel);
+    mbar->Enable(idEditSelectNext,            ed);
+    mbar->Enable(idEditSelectNextSkip,        hasSel);
     mbar->Enable(idEditBookmarks,             ed);
     mbar->Enable(idEditFolding,               ed &&
                                               Manager::Get()->GetConfigManager(_T("editor"))->ReadBool(_T("/folding/show_folds"), false));

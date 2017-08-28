@@ -770,7 +770,6 @@ void cbEditor::DoInitializations(const wxString& filename, LoaderBase* fileLdr)
 //    Manager::Get()->GetLogManager()->DebugLog(_T("ctor: Filename=%s\nShort=%s"), m_Filename.c_str(), m_Shortname.c_str());
 
     // initialize left control (unsplit state)
-    Freeze();
     m_pSizer = new wxBoxSizer(wxVERTICAL);
     m_pControl = CreateEditor();
     m_pSizer->Add(m_pControl, 1, wxEXPAND);
@@ -784,7 +783,6 @@ void cbEditor::DoInitializations(const wxString& filename, LoaderBase* fileLdr)
 //    m_pSizer->Fit(this);
 //    m_pSizer->SetSizeHints(this);
 
-    Thaw();
     m_pSizer->SetItemMinSize(m_pControl, 32, 32);
 
     // by default we show no markers, marginMasks are set explicitly in "InternalSetEditorStyleBeforeFileOpen()"
@@ -3170,18 +3168,10 @@ void cbEditor::OnMarginClick(wxScintillaEvent& event)
 
 void cbEditor::OnEditorUpdateUI(wxScintillaEvent& event)
 {
-    EditorManager* edMgr = Manager::Get()->GetEditorManager();
-    if (edMgr->GetActiveEditor() == this)
+    if (Manager::Get()->GetEditorManager()->GetActiveEditor() == this)
     {
         NotifyPlugins(cbEVT_EDITOR_UPDATE_UI);
         HighlightBraces(); // brace highlighting
-        if (event.GetUpdated() & wxSCI_UPDATE_SELECTION)
-        {
-            // emulate ScintillaWX::ClaimSelection()
-            cbStyledTextCtrl* stc = GetControl();
-            if (stc->GetSelectionStart() != stc->GetSelectionEnd())
-                edMgr->SetSelectionClipboard(stc->GetSelectedText());
-        }
     }
     OnScintillaEvent(event);
 }

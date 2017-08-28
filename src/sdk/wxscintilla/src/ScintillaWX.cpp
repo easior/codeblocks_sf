@@ -50,6 +50,11 @@
 #include "wx/panel.h"
 #include <wx/dcbuffer.h>
 
+// Access gtk directly to manage the primary selection clipboard.
+#if defined(__WXGTK__) && !wxCHECK_VERSION(3, 0, 0)
+    #include "gtk/gtk.h"
+#endif
+
 #ifdef SCI_NAMESPACE
 using namespace Scintilla;
 #endif
@@ -593,14 +598,7 @@ void ScintillaWX::Copy() {
 /* C::B end */
         SelectionText st;
         CopySelectionRange(&st);
-/* C::B begin */
-#ifdef __WXGTK__
-		for (int i=0; i<5; i++)
-        	CopyToClipboard(st);
-#else
-     	CopyToClipboard(st);
-#endif
-/* C::B end */
+        CopyToClipboard(st);
     }
 }
 
@@ -774,14 +772,13 @@ void ScintillaWX::AddToPopUp(const char *label, int cmd, bool enabled) {
 // For wxGTK we can put this text in the primary selection and then other apps
 // can paste with the middle button.
 void ScintillaWX::ClaimSelection() {
-#if 0
 #ifdef __WXGTK__
     // Put the selected text in the PRIMARY selection
 /* C::B begin */
     if (!SelectionEmpty()) {
-/* C::B end */
         SelectionText st;
         CopySelectionRange(&st);
+#if wxCHECK_VERSION(3, 0, 0)
         wxTheClipboard->UsePrimarySelection(true);
         if (wxTheClipboard->Open()) {
             wxString text = sci2wx(st.Data(), st.Length());
@@ -789,8 +786,16 @@ void ScintillaWX::ClaimSelection() {
             wxTheClipboard->Close();
         }
         wxTheClipboard->UsePrimarySelection(false);
+#else
+        GtkClipboard *clipboard = gtk_clipboard_get(GDK_SELECTION_PRIMARY);
+        if (clipboard)
+        {
+            const wxString &text = sci2wx(st.Data(), st.Length());
+            gtk_clipboard_set_text(clipboard, text.mb_str(wxConvUTF8), text.length());
+        }
+#endif // wxCHECK_VERSION
     }
-#endif
+/* C::B end */
 #endif
 }
 
@@ -1150,10 +1155,7 @@ void ScintillaWX::DoLeftButtonMove(Point pt) {
     ButtonMove(pt);
 }
 
-/* C::B begin */
-//#ifdef __WXGTK__
-#if 0 // emulated in cbStyledTextCtrl::OnMouseMiddleClick() due to buggy wxClipboard
-/* C::B end */
+#ifdef __WXGTK__
 void ScintillaWX::DoMiddleButtonUp(Point pt) {
     // Set the current position to the mouse click point and
     // then paste in the PRIMARY selection, if any.  wxGTK only.

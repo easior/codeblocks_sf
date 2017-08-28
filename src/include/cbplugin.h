@@ -37,7 +37,7 @@
 // this is the plugins SDK version number
 // it will change when the SDK interface breaks
 #define PLUGIN_SDK_VERSION_MAJOR   1
-#define PLUGIN_SDK_VERSION_MINOR   30
+#define PLUGIN_SDK_VERSION_MINOR   31
 #define PLUGIN_SDK_VERSION_RELEASE 0
 
 // class decls
@@ -530,7 +530,8 @@ class PLUGIN_EXPORT cbDebuggerPlugin: public cbPlugin
                 Properties   = 1 << 1,
                 Delete       = 1 << 2,
                 DeleteAll    = 1 << 3,
-                AddDataBreak = 1 << 4
+                AddDataBreak = 1 << 4,
+                ExamineMemory = 1 << 5
             };
         };
 

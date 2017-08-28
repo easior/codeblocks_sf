@@ -150,3 +150,13 @@ void ExamineMemoryDlg::EnableWindow(bool enable)
 {
     Enable(enable);
 }
+
+void ExamineMemoryDlg::SetBaseAddress(const wxString &addr)
+{
+    XRCCTRL(*this, "txtAddress", wxTextCtrl)->SetValue(addr);
+
+    cbDebuggerPlugin *plugin = Manager::Get()->GetDebuggerManager()->GetActiveDebugger();
+    if (plugin)
+        plugin->RequestUpdate(cbDebuggerPlugin::ExamineMemory);
+
+}

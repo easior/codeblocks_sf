@@ -897,11 +897,7 @@ int CodeBlocksApp::BatchJob()
         return -1;
 
     // find compiler plugin
-    PluginsArray arr = Manager::Get()->GetPluginManager()->GetCompilerOffers();
-    if (arr.IsEmpty())
-        return -2;
-
-    cbCompilerPlugin* compiler = static_cast<cbCompilerPlugin*>(arr[0]);
+    cbCompilerPlugin *compiler = Manager::Get()->GetPluginManager()->GetFirstCompiler();
     if (!compiler)
         return -3;
 
@@ -1292,7 +1288,8 @@ void CodeBlocksApp::OnAppActivate(wxActivateEvent& event)
     if (s_Loading)
         return; // still loading; we can't possibly be interested for this event ;)
 
-    if (!Manager::Get())
+    Manager *manager = Manager::Get();
+    if (!manager || manager->IsAppShuttingDown())
         return;
 
     // Activation & De-Activation event

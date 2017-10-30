@@ -46,6 +46,7 @@
 #include "projectsfilemasksdlg.h"
 
 #include "goto_file.h"
+#include "startherepage.h"
 
 namespace
 {
@@ -86,6 +87,8 @@ const int idMenuTreeProjectProperties    = wxNewId();
 const int idMenuTreeFileProperties       = wxNewId();
 const int idMenuTreeOptionsCompile       = wxNewId();
 const int idMenuTreeOptionsLink          = wxNewId();
+const int idMenuTreeOptionsDisableBoth   = wxNewId();
+const int idMenuTreeOptionsEnableBoth    = wxNewId();
 const int idMenuGotoFile                 = wxNewId();
 const int idMenuExecParams               = wxNewId();
 const int idMenuViewCategorize           = wxNewId();
@@ -174,6 +177,8 @@ BEGIN_EVENT_TABLE(ProjectManagerUI, wxEvtHandler)
     EVT_MENU(idMenuFileProperties,           ProjectManagerUI::OnProperties)
     EVT_MENU(idMenuTreeOptionsCompile,       ProjectManagerUI::OnFileOptions)
     EVT_MENU(idMenuTreeOptionsLink,          ProjectManagerUI::OnFileOptions)
+    EVT_MENU(idMenuTreeOptionsEnableBoth,    ProjectManagerUI::OnFileOptions)
+    EVT_MENU(idMenuTreeOptionsDisableBoth,   ProjectManagerUI::OnFileOptions)
     EVT_MENU(idMenuTreeProjectProperties,    ProjectManagerUI::OnProperties)
     EVT_MENU(idMenuTreeFileProperties,       ProjectManagerUI::OnProperties)
     EVT_MENU(idMenuGotoFile,                 ProjectManagerUI::OnGotoFile)
@@ -187,6 +192,16 @@ BEGIN_EVENT_TABLE(ProjectManagerUI, wxEvtHandler)
     EVT_MENU(idMenuViewFileMasks,            ProjectManagerUI::OnViewFileMasks)
     EVT_MENU(idMenuFindFile,                 ProjectManagerUI::OnFindFile)
     EVT_IDLE(                                ProjectManagerUI::OnIdle)
+
+    EVT_UPDATE_UI(idMenuFileProperties,      ProjectManagerUI::OnUpdateUI)
+    EVT_UPDATE_UI(idMenuProjectProperties,   ProjectManagerUI::OnUpdateUI)
+    EVT_UPDATE_UI(idMenuAddFile,             ProjectManagerUI::OnUpdateUI)
+    EVT_UPDATE_UI(idMenuAddFilesRecursively, ProjectManagerUI::OnUpdateUI)
+    EVT_UPDATE_UI(idMenuRemoveFile,          ProjectManagerUI::OnUpdateUI)
+    EVT_UPDATE_UI(idMenuProjectTreeProps,    ProjectManagerUI::OnUpdateUI)
+    EVT_UPDATE_UI(idMenuAddVirtualFolder,    ProjectManagerUI::OnUpdateUI)
+    EVT_UPDATE_UI(idMenuDeleteVirtualFolder, ProjectManagerUI::OnUpdateUI)
+
 END_EVENT_TABLE()
 
 ProjectManagerUI::ProjectManagerUI() :
@@ -569,20 +584,7 @@ void ProjectManagerUI::ShowMenu(wxTreeItemId id, const wxPoint& pt)
             || ftd->GetKind() == FileTreeData::ftdkFile
             || ftd->GetKind() == FileTreeData::ftdkFolder ) )
     {
-        int Count = pa->GetCount();
-        cbProject* prjInTree = ftd->GetProject();
-        for (int i = 0; i < Count; ++i)
-        {
-            cbProject* currPrj = pa->Item(i);
-            if (prjInTree->GetTitle().IsSameAs(currPrj->GetTitle()))
-            {
-                if (currPrj->GetCurrentlyCompilingTarget())
-                {
-                    PopUpMenuOption = false;
-                    break;
-                }
-            }
-        }
+        PopUpMenuOption = !cbHasRunningCompilers(Manager::Get()->GetPluginManager());
     }
 
     // if it is not the workspace, add some more options
@@ -593,7 +595,10 @@ void ProjectManagerUI::ShowMenu(wxTreeItemId id, const wxPoint& pt)
         if (ftd->GetKind() == FileTreeData::ftdkProject)
         {
             if (ftd->GetProject() != pm->GetActiveProject())
-                menu.Append(idMenuSetActiveProject,     _("Activate project"));
+            {
+                menu.Append(idMenuSetActiveProject, _("Activate project"));
+                menu.Enable(idMenuSetActiveProject, PopUpMenuOption);
+            }
             menu.Append(idMenuSaveProject,              _("Save project"));
             menu.Enable(idMenuSaveProject, PopUpMenuOption);
             menu.Append(idMenuCloseProject,             _("Close project"));
@@ -604,10 +609,8 @@ void ProjectManagerUI::ShowMenu(wxTreeItemId id, const wxPoint& pt)
             menu.Append(idMenuAddFilesRecursivelyPopup, _("Add files recursively..."));
             menu.Enable(idMenuAddFilesRecursivelyPopup, PopUpMenuOption);
             menu.Append(idMenuRemoveFile,               _("Remove files..."));
-            menu.Enable(idMenuRemoveFile, PopUpMenuOption);
             menu.AppendSeparator();
             menu.Append(idMenuFindFile,                 _("Find file..."));
-            menu.Enable(idMenuFindFile, PopUpMenuOption);
             menu.AppendSeparator();
             CreateMenuTreeProps(&menu, true);
             menu.Append(idMenuAddVirtualFolder,         _("Add new virtual folder..."));
@@ -680,17 +683,14 @@ void ProjectManagerUI::ShowMenu(wxTreeItemId id, const wxPoint& pt)
             menu.Enable(idMenuAddFilesRecursivelyPopup, PopUpMenuOption);
             menu.AppendSeparator();
             menu.Append(idMenuRemoveFile,               _("Remove files..."));
-            menu.Enable(idMenuRemoveFile, PopUpMenuOption);
             menu.AppendSeparator();
             menu.Append(idMenuFindFile,                 _("Find file..."));
-            menu.Enable(idMenuFindFile, PopUpMenuOption);
             menu.AppendSeparator();
             wxFileName f(ftd->GetFolder());
             f.MakeRelativeTo(ftd->GetProject()->GetCommonTopLevelPath());
             menu.Append(idMenuRemoveFolderFilesPopup, wxString::Format(_("Remove %s*"), f.GetFullPath().c_str()));
             menu.Enable(idMenuRemoveFolderFilesPopup, PopUpMenuOption);
             menu.Append(idMenuOpenFolderFilesPopup, wxString::Format(_("Open %s*"), f.GetFullPath().c_str()));
-            menu.Enable(idMenuOpenFolderFilesPopup, PopUpMenuOption);
         }
 
         // if it is a virtual folder
@@ -705,7 +705,6 @@ void ProjectManagerUI::ShowMenu(wxTreeItemId id, const wxPoint& pt)
             menu.Append(idMenuOpenFolderFilesPopup, wxString::Format(_("Open %s*"), ftd->GetFolder().c_str()));
             menu.AppendSeparator();
             menu.Append(idMenuFindFile, _("Find file..."));
-            menu.Enable(idMenuFindFile, PopUpMenuOption);
         }
 
         // if it is a virtual group (wild-card matching)
@@ -729,9 +728,14 @@ void ProjectManagerUI::ShowMenu(wxTreeItemId id, const wxPoint& pt)
         {
             menu.AppendSeparator();
             wxMenu *options = new wxMenu;
-            menu.AppendSubMenu(options, _("Options"));
+            wxMenuItem *optionsItem = menu.AppendSubMenu(options, _("Options"));
+            optionsItem->Enable(PopUpMenuOption);
+
             options->AppendCheckItem(idMenuTreeOptionsCompile, _("Compile file"));
             options->AppendCheckItem(idMenuTreeOptionsLink, _("Link file"));
+            options->AppendSeparator();
+            options->Append(idMenuTreeOptionsEnableBoth, _("Enable both"));
+            options->Append(idMenuTreeOptionsDisableBoth, _("Disable both"));
 
             if ( ProjectFile* pf = ftd->GetProjectFile() )
             {
@@ -739,6 +743,7 @@ void ProjectManagerUI::ShowMenu(wxTreeItemId id, const wxPoint& pt)
                 menu.Check(idMenuTreeOptionsLink, pf->link);
             }
             menu.Append(idMenuTreeFileProperties, _("Properties..."));
+            menu.Enable(idMenuTreeFileProperties, PopUpMenuOption);
         }
     }
     else if (!ftd && pm->GetWorkspace())
@@ -1034,16 +1039,26 @@ void ProjectManagerUI::OnExecParameters(cb_unused wxCommandEvent& event)
 void ProjectManagerUI::OnRightClick(cb_unused wxCommandEvent& event)
 {
     ProjectManager* pm = Manager::Get()->GetProjectManager();
+    if (!pm)
+        return;
+
+    bool notCompilingProject = true;
+    cbProject *project = pm->GetActiveProject();
+    if (project && project->GetCurrentlyCompilingTarget())
+        notCompilingProject = false;
 
     wxMenu menu;
     if (pm->GetWorkspace())
     {
         menu.Append(idMenuTreeRenameWorkspace, _("Rename workspace..."));
+        menu.Enable(idMenuTreeRenameWorkspace, notCompilingProject);
         menu.AppendSeparator();
-        menu.Append(idMenuTreeSaveWorkspace,   _("Save workspace"));
+        menu.Append(idMenuTreeSaveWorkspace, _("Save workspace"));
+        menu.Enable(idMenuTreeSaveWorkspace, notCompilingProject);
         menu.Append(idMenuTreeSaveAsWorkspace, _("Save workspace as..."));
+        menu.Enable(idMenuTreeSaveAsWorkspace, notCompilingProject);
         menu.AppendSeparator();
-        menu.Append(idMenuFindFile,            _("Find file..."));
+        menu.Append(idMenuFindFile, _("Find file..."));
     }
 
     // ask any plugins to add items in this menu
@@ -1070,12 +1085,14 @@ void ProjectManagerUI::OnRightClick(cb_unused wxCommandEvent& event)
 
     menu.AppendSeparator();
     menu.Append(idMenuViewFileMasks, _("Edit file types && categories..."));
+    menu.Enable(idMenuViewFileMasks, notCompilingProject);
 
     if (pm->GetWorkspace())
     {
         // this menu items should be always the last one
         menu.AppendSeparator();
         menu.Append(idMenuTreeCloseWorkspace,  _("Close workspace"));
+        menu.Enable(idMenuTreeCloseWorkspace, notCompilingProject);
     }
 
     wxPoint pt = wxGetMousePosition();
@@ -1716,54 +1733,70 @@ void ProjectManagerUI::OnProperties(wxCommandEvent& event)
     }
 }
 
+/// Find all selected tree items which are files and call the func on them.
+/// The function is expected to return true when it made modifications to the ProjectFile parameter,
+/// and false when it didn't.
+/// The modified parameter will be filled with the set of modified projects.
+template<typename Func>
+static void applyFileOptionChange(std::set<cbProject*> &modified, wxTreeCtrl &tree, Func func)
+{
+    wxArrayTreeItemIds selected;
+    size_t count = tree.GetSelections(selected);
+    for (size_t ii = 0; ii < count; ++ii)
+    {
+        wxTreeItemId id = selected[ii];
+        if (!id.IsOk())
+            continue;
+
+        FileTreeData* ftd = (FileTreeData*)tree.GetItemData(id);
+        if (!ftd || ftd->GetKind() != FileTreeData::ftdkFile)
+            continue;
+
+        ProjectFile* pf = ftd->GetProjectFile();
+        if (pf && func(*pf))
+        {
+            if (pf->GetParentProject())
+                modified.insert(pf->GetParentProject());
+        }
+    }
+}
+
 void ProjectManagerUI::OnFileOptions(wxCommandEvent &event)
 {
     std::set<cbProject*> modified;
     if (event.GetId() == idMenuTreeOptionsCompile)
     {
-        wxArrayTreeItemIds selected;
-        size_t count = m_pTree->GetSelections(selected);
-        for (size_t ii = 0; ii < count; ++ii)
-        {
-            wxTreeItemId id = selected[ii];
-            if (!id.IsOk())
-                continue;
-
-            FileTreeData* ftd = (FileTreeData*)m_pTree->GetItemData(id);
-            if (!ftd || ftd->GetKind() != FileTreeData::ftdkFile)
-                continue;
-
-            ProjectFile* pf = ftd->GetProjectFile();
-            if (pf && pf->compile != event.IsChecked())
+        const bool checked = event.IsChecked();
+        applyFileOptionChange(modified, *m_pTree, [checked](ProjectFile &pf) -> bool {
+            if (pf.compile != checked)
             {
-                pf->compile = event.IsChecked();
-                if (pf->GetParentProject())
-                    modified.insert(pf->GetParentProject());
+                pf.compile = checked;
+                return true;
             }
-        }
+            else
+                return false;
+        });
     }
     else if (event.GetId() == idMenuTreeOptionsLink)
     {
-        wxArrayTreeItemIds selected;
-        size_t count = m_pTree->GetSelections(selected);
-        for (size_t ii = 0; ii < count; ++ii)
-        {
-            wxTreeItemId id = selected[ii];
-            if (!id.IsOk())
-                continue;
-
-            FileTreeData* ftd = (FileTreeData*)m_pTree->GetItemData(id);
-            if (!ftd || ftd->GetKind() != FileTreeData::ftdkFile)
-                continue;
-
-            ProjectFile* pf = ftd->GetProjectFile();
-            if (pf && pf->link != event.IsChecked())
+        const bool checked = event.IsChecked();
+        applyFileOptionChange(modified, *m_pTree, [checked](ProjectFile &pf) -> bool {
+            if (pf.link != checked)
             {
-                pf->link = event.IsChecked();
-                if (pf->GetParentProject())
-                    modified.insert(pf->GetParentProject());
+                pf.link = checked;
+                return true;
             }
-        }
+            else
+                return false;
+        });
+    }
+    else if (event.GetId() == idMenuTreeOptionsEnableBoth || event.GetId() == idMenuTreeOptionsDisableBoth)
+    {
+        const bool newValue = (event.GetId() == idMenuTreeOptionsEnableBoth);
+        applyFileOptionChange(modified, *m_pTree, [newValue](ProjectFile &pf) -> bool {
+            pf.compile = pf.link = newValue;
+            return true;
+        });
     }
 
     for (std::set<cbProject*>::iterator it = modified.begin(); it != modified.end(); ++it)
@@ -2274,7 +2307,46 @@ void ProjectManagerUI::OnEndEditNode(wxTreeEvent& event)
 
 void ProjectManagerUI::OnUpdateUI(wxUpdateUIEvent& event)
 {
-    event.Skip();
+    if (event.GetId() == idMenuFileProperties)
+    {
+        EditorManager *editorManager = Manager::Get()->GetEditorManager();
+        bool enableProperties;
+        if (editorManager)
+        {
+            EditorBase *editor = editorManager->GetActiveEditor();
+            EditorBase *startHerePage = editorManager->GetEditor(g_StartHereTitle);
+
+            enableProperties = (editor && editor != startHerePage);
+            if (enableProperties)
+                enableProperties = !cbHasRunningCompilers(Manager::Get()->GetPluginManager());
+        }
+        else
+            enableProperties = false;
+
+        event.Enable(enableProperties);
+    }
+    else if (event.GetId() == idMenuProjectProperties || event.GetId() == idMenuAddFile
+             || event.GetId() == idMenuAddFilesRecursively || event.GetId() == idMenuRemoveFile
+             || event.GetId() == idMenuProjectTreeProps || event.GetId() == idMenuAddVirtualFolder
+             || event.GetId() == idMenuDeleteVirtualFolder)
+    {
+        ProjectManager *projectManager = Manager::Get()->GetProjectManager();
+        if (!projectManager || (projectManager->GetIsRunning() != nullptr))
+            event.Enable(false);
+        else
+        {
+            cbProject *project = projectManager->GetActiveProject();
+            if (!project)
+                event.Enable(false);
+            else
+            {
+                bool enable = !cbHasRunningCompilers(Manager::Get()->GetPluginManager());
+                event.Enable(enable);
+            }
+        }
+    }
+    else
+        event.Skip();
 }
 
 void ProjectManagerUI::OnIdle(wxIdleEvent& event)

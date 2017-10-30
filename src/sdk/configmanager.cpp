@@ -31,6 +31,8 @@
 #include <shlobj.h>
 #endif
 
+#include "annoyingdialog.h"
+
 #if defined(__APPLE__) && defined(__MACH__)
 #include <sys/param.h>
 #include <mach-o/dyld.h>
@@ -220,6 +222,34 @@ wxString CfgMgrBldr::FindConfigFile(const wxString& filename)
     return wxEmptyString;
 }
 
+/// Print error message an allow the user to either discard the old config or close the application.
+/// Call this function when you've detected an error while reading the config.
+static void handleConfigError(TiXmlDocument &doc, const wxString &fileName, const wxString &additionalMessage)
+{
+    wxString message;
+    if (doc.ErrorId())
+    {
+        message = wxString::Format(_("TinyXML error: %s\nIn file: %s\nAt row %d, column: %d.\n\n"),
+                                   cbC2U(doc.ErrorDesc()).c_str(), fileName.wx_str(),
+                                   doc.ErrorRow(), doc.ErrorCol());
+    }
+    message += additionalMessage;
+
+    // Show a message box and ask the user to either abort or discard the old config.
+    wxMessageDialog dlg(Manager::Get()->GetAppWindow(),
+                        message + _("\n\nDiscard old config file?"), _("Config file read error"),
+                        wxSTAY_ON_TOP|wxCENTRE|wxYES|wxNO|wxNO_DEFAULT|wxICON_ERROR);
+#if wxCHECK_VERSION(3, 0, 0)
+    dlg.SetYesNoLabels(_("&Discard"), _("&Close"));
+#endif
+    if (dlg.ShowModal() != wxID_YES)
+        cbThrow(message);
+
+    doc.ClearError();
+    doc.InsertEndChild(TiXmlDeclaration("1.0", "UTF-8", "yes"));
+    doc.InsertEndChild(TiXmlElement("CodeBlocksConfig"));
+    doc.FirstChildElement("CodeBlocksConfig")->SetAttribute("version", CfgMgrConsts::version);
+}
 
 void CfgMgrBldr::SwitchTo(const wxString& fileName)
 {
@@ -227,18 +257,22 @@ void CfgMgrBldr::SwitchTo(const wxString& fileName)
 
     if (!TinyXML::LoadDocument(fileName, doc))
     {
-        doc->InsertEndChild(TiXmlDeclaration("1.0", "UTF-8", "yes"));
-        doc->InsertEndChild(TiXmlElement("CodeBlocksConfig"));
-        doc->FirstChildElement("CodeBlocksConfig")->SetAttribute("version", CfgMgrConsts::version);
+        const wxString message = wxString::Format(_("Error reading config file: %s"),
+                                                  fileName.wx_str());
+        handleConfigError(*doc, fileName, message);
     }
 
-    if (doc->ErrorId())
-        cbThrow(wxString::Format(_T("TinyXML error: %s\nIn file: %s\nAt row %d, column: %d."), cbC2U(doc->ErrorDesc()).c_str(), fileName.c_str(), doc->ErrorRow(), doc->ErrorCol()));
-
     TiXmlElement* docroot = doc->FirstChildElement("CodeBlocksConfig");
+    if (!docroot)
+    {
+        const wxString message = wxString::Format(wxT("Cannot find docroot in config file '%s'"),
+                                                  fileName.wx_str());
+        handleConfigError(*doc, fileName, message);
+        docroot = doc->FirstChildElement("CodeBlocksConfig");
 
-    if (doc->ErrorId())
-        cbThrow(wxString::Format(_T("TinyXML error: %s\nIn file: %s\nAt row %d, column: %d."), cbC2U(doc->ErrorDesc()).c_str(), fileName.c_str(), doc->ErrorRow(), doc->ErrorCol()));
+        if (!docroot)
+            cbThrow(wxT("Something really bad happened while reading the config file. Aborting!"));
+    }
 
     const char *vers = docroot->Attribute("version");
     if (!vers || atoi(vers) != 1)
@@ -352,9 +386,29 @@ void CfgMgrBldr::Flush()
     {
         if (!cfg.StartsWith(_T("http://")))
         {
-            if (!TinyXML::SaveDocument(cfg, doc))
-                // TODO (thomas#1#): add "retry" option
-                wxSafeShowMessage(_("Warning"), _T("Could not save config file..."));
+            bool done = false;
+            do
+            {
+                if (TinyXML::SaveDocument(cfg, doc))
+                    done = true;
+                else
+                {
+                    AnnoyingDialog dlg(_("Error"),
+                                       F(_T("Could not save config file '%s'!"), cfg.wx_str()),
+                                       wxART_ERROR, AnnoyingDialog::TWO_BUTTONS,
+                                       AnnoyingDialog::rtTWO, _("&Retry"), _("&Close"));
+                    PlaceWindow(&dlg);
+                    switch (dlg.ShowModal())
+                    {
+                        case AnnoyingDialog::rtONE:
+                            done = false;
+                            break;
+                        case AnnoyingDialog::rtTWO:
+                        default:
+                            done = true;
+                    }
+                }
+            } while (!done);
         }
         else
         {

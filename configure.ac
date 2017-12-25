@@ -14,6 +14,8 @@ AC_MSG_RESULT([${enable_flags_setting}])
 
 m4_include([m4/acinclude.m4])
 m4_include([m4/ax_cxx_compile_stdcxx.m4])
+m4_include([m4/ax_boost_base.m4])
+m4_include([m4/ax_boost_system.m4])
 
 CODEBLOCKS_CHECK_DEBUG
 
@@ -237,11 +239,13 @@ case $WX_BASENAME in
 				fi
 			fi
 
-    	fi
+		fi
 
-        dnl Check whether boost is installed
-        AX_BOOST_BASE
-        AX_BOOST_SYSTEM
+		if test "x$BUILD_NASSISHNEIDERMAN_TRUE" = "x" ; then
+			dnl Check whether boost is installed
+			AX_BOOST_BASE
+			AX_BOOST_SYSTEM
+		fi
 
 		CB_GLIB2_CFLAGS="$GLIB2_CFLAGS"
 		CB_GLIB2_LIBS="$GLIB2_LIBS"

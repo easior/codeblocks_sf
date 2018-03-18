@@ -106,8 +106,9 @@ void CB_Koders::BuildModuleMenu(const ModuleType type, wxMenu* menu, const FileT
 
 	if (type == mtEditorManager)
 	{
-		menu->AppendSeparator();
-		menu->Append(idSearchKoders, _("Search at BlackDuck..."), _("Search keyword at BlackDuck webpage..."));
+		const wxString label = _("Search at BlackDuck...");
+		const int position = Manager::Get()->GetPluginManager()->FindSortedMenuItemPosition(*menu, label);
+		menu->Insert(position, idSearchKoders, label , _("Search keyword at BlackDuck webpage..."));
 	}
 }
 

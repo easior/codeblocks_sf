@@ -1371,19 +1371,24 @@ PluginsArray PluginManager::GetOffersFor(PluginType type)
 
 void PluginManager::AskPluginsForModuleMenu(const ModuleType type, wxMenu* menu, const FileTreeData* data)
 {
+    std::map<wxString, cbPlugin*> sortedPlugins;
     for (unsigned int i = 0; i < m_Plugins.GetCount(); ++i)
     {
         cbPlugin* plug = m_Plugins[i]->plugin;
         if (plug && plug->IsAttached())
+            sortedPlugins[m_Plugins[i]->info.name] = plug;
+    }
+
+    // We want the order of iteration to be more stable, so there are fewer surprises on different machines.
+    for (auto &pair : sortedPlugins)
+    {
+        try
         {
-            try
-            {
-                plug->BuildModuleMenu(type, menu, data);
-            }
-            catch (cbException& exception)
-            {
-                exception.ShowErrorMessage(false);
-            }
+            pair.second->BuildModuleMenu(type, menu, data);
+        }
+        catch (cbException& exception)
+        {
+            exception.ShowErrorMessage(false);
         }
     }
 
@@ -1395,6 +1400,66 @@ void PluginManager::AskPluginsForModuleMenu(const ModuleType type, wxMenu* menu,
                 (wxObjectEventFunction) (wxEventFunction) (wxCommandEventFunction)
                 &PluginManager::OnScriptModuleMenu);
     }
+}
+
+void PluginManager::ResetModuleMenu()
+{
+    m_FindMenuItemCount = 0;
+    m_FindMenuItemFirst = 0;
+    m_LastNonPluginMenuId = 0;
+}
+
+void PluginManager::RegisterFindMenuItems(bool before, int count)
+{
+    if (before)
+        m_FindMenuItemFirst += count;
+    else
+        m_FindMenuItemCount += count;
+}
+
+int PluginManager::GetFindMenuItemCount() const
+{
+    return m_FindMenuItemCount;
+}
+
+int PluginManager::GetFindMenuItemFirst() const
+{
+    return m_FindMenuItemFirst;
+}
+
+void PluginManager::RegisterLastNonPluginMenuItem(int id)
+{
+    m_LastNonPluginMenuId = id;
+}
+
+int PluginManager::FindSortedMenuItemPosition(wxMenu &popup, const wxString& label) const
+{
+    int position = -1;
+    const wxMenuItemList &items = popup.GetMenuItems();
+    const int count = int(items.size());
+    for (int ii = 0; ii < count; ++ii)
+    {
+        if (items[ii]->GetId() == m_LastNonPluginMenuId)
+        {
+            position = ii + 1;
+            break;
+        }
+    }
+
+    if (position == -1 || (position >= count))
+        return count;
+    if (items[position]->GetKind() == wxITEM_SEPARATOR)
+        position++;
+
+    // Linear search for now. The number of items isn't large, so it shouldn't be a performance
+    // problem.
+    for (int ii = position; ii < count; ++ii)
+    {
+        const wxString &itemLabel = items[ii]->GetItemLabelText();
+        if (label.CmpNoCase(itemLabel) <= 0)
+            return ii;
+    }
+    return count;
 }
 
 void PluginManager::OnScriptMenu(wxCommandEvent& event)

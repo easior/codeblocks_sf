@@ -758,37 +758,37 @@ void CodeCompletion::BuildModuleMenu(const ModuleType type, wxMenu* menu, const 
         const bool nameUnderCursor = CodeCompletionHelper::EditorHasNameUnderCursor(NameUnderCursor, IsInclude);
         if (nameUnderCursor)
         {
+            PluginManager *pluginManager = Manager::Get()->GetPluginManager();
+
             if (IsInclude)
             {
                 wxString msg;
                 msg.Printf(_("Open #include file: '%s'"), NameUnderCursor.wx_str());
                 menu->Insert(0, idOpenIncludeFile, msg);
                 menu->Insert(1, wxID_SEPARATOR, wxEmptyString);
+                pluginManager->RegisterFindMenuItems(true, 2);
             }
             else
             {
+                int initialPos = pluginManager->GetFindMenuItemFirst();
+                int pos = initialPos;
                 wxString msg;
-                size_t pos = 0;
                 msg.Printf(_("Find declaration of: '%s'"), NameUnderCursor.wx_str());
-                menu->Insert(pos, idGotoDeclaration, msg);
-                ++pos;
+                menu->Insert(pos++, idGotoDeclaration, msg);
 
                 msg.Printf(_("Find implementation of: '%s'"), NameUnderCursor.wx_str());
-                menu->Insert(pos, idGotoImplementation, msg);
-                ++pos;
+                menu->Insert(pos++, idGotoImplementation, msg);
 
                 if (m_NativeParser.GetParser().Done())
                 {
                     msg.Printf(_("Find references of: '%s'"), NameUnderCursor.wx_str());
-                    menu->Insert(pos, idMenuFindReferences, msg);
-                    ++pos;
+                    menu->Insert(pos++, idMenuFindReferences, msg);
                 }
-
-                menu->Insert(pos, wxID_SEPARATOR, wxEmptyString);
+                pluginManager->RegisterFindMenuItems(false, pos - initialPos);
             }
         }
 
-        const int insertId = menu->FindItem(_("Insert"));
+        const int insertId = menu->FindItem(_("Insert/Refactor"));
         if (insertId != wxNOT_FOUND)
         {
             if (wxMenuItem* insertMenu = menu->FindItem(insertId, 0))
@@ -797,6 +797,12 @@ void CodeCompletion::BuildModuleMenu(const ModuleType type, wxMenu* menu, const 
                 {
                     subMenu->Append(idClassMethod, _("Class method declaration/implementation..."));
                     subMenu->Append(idUnimplementedClassMethods, _("All class methods without implementation..."));
+
+                    subMenu->AppendSeparator();
+
+                    const bool enableRename = (m_NativeParser.GetParser().Done() && nameUnderCursor && !IsInclude);
+                    subMenu->Append(idMenuRenameSymbols, _("Rename symbols"), _("Rename symbols under cursor"));
+                    subMenu->Enable(idMenuRenameSymbols, enableRename);
                 }
                 else
                     CCLogger::Get()->DebugLog(_T("Could not find Insert menu 3!"));
@@ -806,14 +812,6 @@ void CodeCompletion::BuildModuleMenu(const ModuleType type, wxMenu* menu, const 
         }
         else
             CCLogger::Get()->DebugLog(_T("Could not find Insert menu!"));
-
-        if (m_NativeParser.GetParser().Done() && nameUnderCursor && !IsInclude)
-        {
-            wxMenu* refactorMenu = new wxMenu();
-            refactorMenu->Append(idMenuRenameSymbols, _("Rename symbols"), _("Rename symbols under cursor"));
-            menu->AppendSeparator();
-            menu->Append(wxID_ANY, _T("Code Refactoring"), refactorMenu);
-        }
     }
     else if (type == mtProjectManager)
     {
@@ -1638,8 +1636,6 @@ void CodeCompletion::EditorEventHook(cbEditor* editor, wxScintillaEvent& event)
     {   TRACE(_T("wxEVT_SCI_CHARADDED")); }
     else if (event.GetEventType() == wxEVT_SCI_CHANGE)
     {   TRACE(_T("wxEVT_SCI_CHANGE")); }
-    else if (event.GetEventType() == wxEVT_SCI_KEY)
-    {   TRACE(_T("wxEVT_SCI_KEY")); }
     else if (event.GetEventType() == wxEVT_SCI_MODIFIED)
     {   TRACE(_T("wxEVT_SCI_MODIFIED")); }
     else if (event.GetEventType() == wxEVT_SCI_AUTOCOMP_SELECTION)

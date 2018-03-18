@@ -866,26 +866,6 @@ void CCManager::OnEditorHook(cbEditor* ed, wxScintillaEvent& event)
             }
         }
     }
-    else if (evtType == wxEVT_SCI_KEY)
-    {
-        cbStyledTextCtrl* stc = ed->GetControl();
-        switch (event.GetKey())
-        {
-            case wxSCI_KEY_LEFT:
-            case wxSCI_KEY_RIGHT:
-                if (!stc->CallTipActive() && !stc->AutoCompActive())
-                    m_CallTipActive = wxSCI_INVALID_POSITION;
-                // fall through
-            case wxSCI_KEY_UP:
-            case wxSCI_KEY_DOWN:
-                if (m_CallTipActive != wxSCI_INVALID_POSITION && !stc->AutoCompActive())
-                    m_CallTipTimer.Start(CALLTIP_REFRESH_DELAY, wxTIMER_ONE_SHOT);
-                break;
-
-            default:
-                break;
-        }
-    }
     else if (evtType == wxEVT_SCI_MODIFIED)
     {
         if (event.GetModificationType() & wxSCI_PERFORMED_UNDO)
@@ -1256,8 +1236,11 @@ void CCManager::DoBufferedCC(cbStyledTextCtrl* stc)
     // display
     stc->AutoCompShow(m_LastACLaunchState[lsCaretStart] - m_LastACLaunchState[lsTknStart], items);
     m_OwnsAutocomp = true;
-    if (   m_LastAutocompIndex != wxNOT_FOUND
-        && m_LastAutocompIndex < (int)m_AutocompTokens.size() )
+
+    // We need to check if the auto completion is active, because if there are no matches scintilla will close
+    // the popup and any call to AutoCompSelect will result in a crash.
+    if (stc->AutoCompActive() &&
+        (m_LastAutocompIndex != wxNOT_FOUND && m_LastAutocompIndex < (int)m_AutocompTokens.size()))
     {
         // re-select last selected entry
         const cbCodeCompletionPlugin::CCToken& token = m_AutocompTokens[m_LastAutocompIndex];

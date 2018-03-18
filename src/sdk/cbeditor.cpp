@@ -1047,7 +1047,6 @@ void cbEditor::ConnectEvents(cbStyledTextCtrl* stc)
         wxEVT_SCI_SAVEPOINTREACHED,
         wxEVT_SCI_SAVEPOINTLEFT,
         wxEVT_SCI_ROMODIFYATTEMPT,
-        wxEVT_SCI_KEY,
         wxEVT_SCI_DOUBLECLICK,
 //        wxEVT_SCI_UPDATEUI,
 //        wxEVT_SCI_MODIFIED,
@@ -1056,11 +1055,9 @@ void cbEditor::ConnectEvents(cbStyledTextCtrl* stc)
         wxEVT_SCI_NEEDSHOWN,
         wxEVT_SCI_PAINTED,
 //        wxEVT_SCI_USERLISTSELECTION,
-        wxEVT_SCI_URIDROPPED,
 //        wxEVT_SCI_DWELLSTART,
 //        wxEVT_SCI_DWELLEND,
         wxEVT_SCI_START_DRAG,
-        wxEVT_SCI_FINISHED_DRAG,
         wxEVT_SCI_DRAG_OVER,
         wxEVT_SCI_DO_DROP,
         wxEVT_SCI_ZOOM,
@@ -1071,8 +1068,6 @@ void cbEditor::ConnectEvents(cbStyledTextCtrl* stc)
 //        wxEVT_SCI_INDICATOR_CLICK,
 //        wxEVT_SCI_INDICATOR_RELEASE,
         wxEVT_SCI_AUTOCOMP_CANCELLED,
-        wxEVT_SCI_TAB,
-        wxEVT_SCI_ESC,
 
         -1 // to help enumeration of this array
     };
@@ -1361,17 +1356,17 @@ void cbEditor::InternalSetEditorStyleBeforeFileOpen(cbStyledTextCtrl* control)
     if (mgr->ReadBool(_T("/camel_case"), false))
     {
         // consider CamelCase for both: cursor movement with CTRL and selection with CTRL+SHIFT:
-        control->CmdKeyAssign(wxSCI_KEY_LEFT,  wxSCI_SCMOD_CTRL,                   wxSCI_CMD_WORDPARTLEFT);
-        control->CmdKeyAssign(wxSCI_KEY_RIGHT, wxSCI_SCMOD_CTRL,                   wxSCI_CMD_WORDPARTRIGHT);
-        control->CmdKeyAssign(wxSCI_KEY_LEFT,  wxSCI_SCMOD_CTRL|wxSCI_SCMOD_SHIFT, wxSCI_CMD_WORDPARTLEFTEXTEND);
-        control->CmdKeyAssign(wxSCI_KEY_RIGHT, wxSCI_SCMOD_CTRL|wxSCI_SCMOD_SHIFT, wxSCI_CMD_WORDPARTRIGHTEXTEND);
+        control->CmdKeyAssign(wxSCI_KEY_LEFT,  wxSCI_KEYMOD_CTRL,                   wxSCI_CMD_WORDPARTLEFT);
+        control->CmdKeyAssign(wxSCI_KEY_RIGHT, wxSCI_KEYMOD_CTRL,                   wxSCI_CMD_WORDPARTRIGHT);
+        control->CmdKeyAssign(wxSCI_KEY_LEFT,  wxSCI_KEYMOD_CTRL|wxSCI_KEYMOD_SHIFT, wxSCI_CMD_WORDPARTLEFTEXTEND);
+        control->CmdKeyAssign(wxSCI_KEY_RIGHT, wxSCI_KEYMOD_CTRL|wxSCI_KEYMOD_SHIFT, wxSCI_CMD_WORDPARTRIGHTEXTEND);
     }
     else // else set default "none CamelCase" key behavior (also default scintilla behaviour, see scintilla docs)
     {
-        control->CmdKeyAssign(wxSCI_KEY_LEFT,  wxSCI_SCMOD_CTRL,                   wxSCI_CMD_WORDLEFT);
-        control->CmdKeyAssign(wxSCI_KEY_RIGHT, wxSCI_SCMOD_CTRL,                   wxSCI_CMD_WORDRIGHT);
-        control->CmdKeyAssign(wxSCI_KEY_LEFT,  wxSCI_SCMOD_CTRL|wxSCI_SCMOD_SHIFT, wxSCI_CMD_WORDLEFTEXTEND);
-        control->CmdKeyAssign(wxSCI_KEY_RIGHT, wxSCI_SCMOD_CTRL|wxSCI_SCMOD_SHIFT, wxSCI_CMD_WORDRIGHTEXTEND);
+        control->CmdKeyAssign(wxSCI_KEY_LEFT,  wxSCI_KEYMOD_CTRL,                   wxSCI_CMD_WORDLEFT);
+        control->CmdKeyAssign(wxSCI_KEY_RIGHT, wxSCI_KEYMOD_CTRL,                   wxSCI_CMD_WORDRIGHT);
+        control->CmdKeyAssign(wxSCI_KEY_LEFT,  wxSCI_KEYMOD_CTRL|wxSCI_KEYMOD_SHIFT, wxSCI_CMD_WORDLEFTEXTEND);
+        control->CmdKeyAssign(wxSCI_KEY_RIGHT, wxSCI_KEYMOD_CTRL|wxSCI_KEYMOD_SHIFT, wxSCI_CMD_WORDRIGHTEXTEND);
     }
 
     control->SetUseTabs(mgr->ReadBool(_T("/use_tab"), false));
@@ -1385,42 +1380,42 @@ void cbEditor::InternalSetEditorStyleBeforeFileOpen(cbStyledTextCtrl* control)
         // otherwise to the start/end of the entire line.
         // alt+home/end go to start/end of the entire line.
         // in unwrapped mode, there is no difference between home/end and alt+home/end
-        control->CmdKeyAssign(wxSCI_KEY_END,  wxSCI_SCMOD_NORM,                  wxSCI_CMD_LINEENDWRAP);
-        control->CmdKeyAssign(wxSCI_KEY_END,  wxSCI_SCMOD_ALT,                   wxSCI_CMD_LINEEND);
-        control->CmdKeyAssign(wxSCI_KEY_END,  wxSCI_SCMOD_SHIFT,                 wxSCI_CMD_LINEENDWRAPEXTEND);
-        control->CmdKeyAssign(wxSCI_KEY_END,  wxSCI_SCMOD_SHIFT|wxSCI_SCMOD_ALT, wxSCI_CMD_LINEENDEXTEND);
+        control->CmdKeyAssign(wxSCI_KEY_END,  wxSCI_KEYMOD_NORM,                  wxSCI_CMD_LINEENDWRAP);
+        control->CmdKeyAssign(wxSCI_KEY_END,  wxSCI_KEYMOD_ALT,                   wxSCI_CMD_LINEEND);
+        control->CmdKeyAssign(wxSCI_KEY_END,  wxSCI_KEYMOD_SHIFT,                 wxSCI_CMD_LINEENDWRAPEXTEND);
+        control->CmdKeyAssign(wxSCI_KEY_END,  wxSCI_KEYMOD_SHIFT|wxSCI_KEYMOD_ALT, wxSCI_CMD_LINEENDEXTEND);
 
         // if user wants "Home" key to set cursor to the very beginning of line
         if (mgr->ReadBool(_T("/simplified_home"), false))
         {
-            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_SCMOD_NORM,wxSCI_CMD_HOMEWRAP);
-            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_SCMOD_ALT,wxSCI_CMD_HOME);
-            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_SCMOD_SHIFT,wxSCI_CMD_HOMEWRAPEXTEND);
-            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_SCMOD_SHIFT|wxSCI_SCMOD_ALT,wxSCI_CMD_HOMEEXTEND);
+            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_KEYMOD_NORM,wxSCI_CMD_HOMEWRAP);
+            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_KEYMOD_ALT,wxSCI_CMD_HOME);
+            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_KEYMOD_SHIFT,wxSCI_CMD_HOMEWRAPEXTEND);
+            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_KEYMOD_SHIFT|wxSCI_KEYMOD_ALT,wxSCI_CMD_HOMEEXTEND);
         }
         else // else set default "Home" key behaviour
         {
-            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_SCMOD_NORM,wxSCI_CMD_VCHOMEWRAP);
-            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_SCMOD_ALT,wxSCI_CMD_VCHOME);
-            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_SCMOD_SHIFT,wxSCI_CMD_VCHOMEWRAPEXTEND);
-            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_SCMOD_SHIFT|wxSCI_SCMOD_ALT,wxSCI_CMD_VCHOMEEXTEND);
+            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_KEYMOD_NORM,wxSCI_CMD_VCHOMEWRAP);
+            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_KEYMOD_ALT,wxSCI_CMD_VCHOME);
+            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_KEYMOD_SHIFT,wxSCI_CMD_VCHOMEWRAPEXTEND);
+            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_KEYMOD_SHIFT|wxSCI_KEYMOD_ALT,wxSCI_CMD_VCHOMEEXTEND);
         }
     }
     else
     {   // in word wrap mode, home/end keys goto start/end of the entire line. alt+home/end goes to wrap points
-        control->CmdKeyAssign(wxSCI_KEY_END,  wxSCI_SCMOD_ALT,                   wxSCI_CMD_LINEENDWRAP);
-        control->CmdKeyAssign(wxSCI_KEY_END,  wxSCI_SCMOD_SHIFT|wxSCI_SCMOD_ALT, wxSCI_CMD_LINEENDWRAPEXTEND);
+        control->CmdKeyAssign(wxSCI_KEY_END,  wxSCI_KEYMOD_ALT,                   wxSCI_CMD_LINEENDWRAP);
+        control->CmdKeyAssign(wxSCI_KEY_END,  wxSCI_KEYMOD_SHIFT|wxSCI_KEYMOD_ALT, wxSCI_CMD_LINEENDWRAPEXTEND);
 
         // if user wants "Home" key to set cursor to the very beginning of line
         if (mgr->ReadBool(_T("/simplified_home"), false))
         {
-            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_SCMOD_ALT,wxSCI_CMD_HOMEWRAP);
-            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_SCMOD_SHIFT|wxSCI_SCMOD_ALT,wxSCI_CMD_HOMEWRAPEXTEND);
+            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_KEYMOD_ALT,wxSCI_CMD_HOMEWRAP);
+            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_KEYMOD_SHIFT|wxSCI_KEYMOD_ALT,wxSCI_CMD_HOMEWRAPEXTEND);
         }
         else // else set default "Home" key behaviour
         {
-            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_SCMOD_ALT,wxSCI_CMD_VCHOMEWRAP);
-            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_SCMOD_SHIFT|wxSCI_SCMOD_ALT,wxSCI_CMD_VCHOMEWRAPEXTEND);
+            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_KEYMOD_ALT,wxSCI_CMD_VCHOMEWRAP);
+            control->CmdKeyAssign(wxSCI_KEY_HOME,wxSCI_KEYMOD_SHIFT|wxSCI_KEYMOD_ALT,wxSCI_CMD_VCHOMEWRAPEXTEND);
         }
     }
     control->SetViewEOL(mgr->ReadBool(_T("/show_eol"), false));
@@ -1529,15 +1524,17 @@ void cbEditor::InternalSetEditorStyleBeforeFileOpen(cbStyledTextCtrl* control)
     // NOTE: duplicate line in editorconfigurationdlg.cpp (ctor)
     control->SetScrollWidthTracking(      mgr->ReadBool(_T("/margin/scroll_width_tracking"), false));
     control->SetMultipleSelection(        mgr->ReadBool(_T("/selection/multi_select"),       false));
-    control->SetAdditionalSelectionTyping(mgr->ReadBool(_T("/selection/multi_typing"),       false));
+    const bool multiTyping = mgr->ReadBool(_T("/selection/multi_typing"), false);
+    control->SetAdditionalSelectionTyping(multiTyping);
+    control->SetMultiPaste(multiTyping);
 
     unsigned virtualSpace = 0;
     if (mgr->ReadBool(_T("/selection/use_rect_vspace"), false))
-        virtualSpace |= wxSCI_SCVS_RECTANGULARSELECTION;
+        virtualSpace |= wxSCI_VS_RECTANGULARSELECTION;
     if (mgr->ReadBool(_T("/selection/use_vspace"), false))
-        virtualSpace |= wxSCI_SCVS_USERACCESSIBLE;
+        virtualSpace |= wxSCI_VS_USERACCESSIBLE;
     if (!virtualSpace)
-        virtualSpace = wxSCI_SCVS_NONE; // Just in case wxSCI_SCVS_NONE != 0
+        virtualSpace = wxSCI_VS_NONE; // Just in case wxSCI_VS_NONE != 0
     control->SetVirtualSpaceOptions(virtualSpace);
 }
 
@@ -2709,7 +2706,6 @@ wxString cbEditor::GetLineIndentString(int line) const
 // Creates a submenu for a Context Menu based on the submenu's specific Id
 wxMenu* cbEditor::CreateContextSubMenu(long id)
 {
-    cbStyledTextCtrl* control = GetControl();
     wxMenu* menu = nullptr;
     if (id == idInsert)
     {
@@ -2724,32 +2720,22 @@ wxMenu* cbEditor::CreateContextSubMenu(long id)
         menu->Append(idRedo, _("Redo"));
         menu->Append(idClearHistory, _("Clear changes history"));
         menu->AppendSeparator();
-        menu->Append(idCut, _("Cut"));
-        menu->Append(idCopy, _("Copy"));
-        menu->Append(idPaste, _("Paste"));
         menu->Append(idDelete, _("Delete"));
+        menu->Append(idSelectAll, _("Select all"));
         menu->AppendSeparator();
         menu->Append(idUpperCase, _("UPPERCASE"));
         menu->Append(idLowerCase, _("lowercase"));
-        menu->AppendSeparator();
-        menu->Append(idSelectAll, _("Select all"));
 
-        bool hasSel = control->GetSelectionEnd() - control->GetSelectionStart() != 0;
+        cbStyledTextCtrl* control = GetControl();
 
         menu->Enable(idUndo, control->CanUndo());
         menu->Enable(idRedo, control->CanRedo());
         menu->Enable(idClearHistory, control->CanUndo() || control->CanRedo());
-        menu->Enable(idCut, !control->GetReadOnly() && hasSel);
-        menu->Enable(idCopy, hasSel);
 
-        if (platform::gtk) // a wxGTK bug causes the triggering of unexpected events
-            menu->Enable(idPaste, !control->GetReadOnly());
-        else
-            menu->Enable(idPaste, !control->GetReadOnly() && control->CanPaste());
-
-        menu->Enable(idDelete, !control->GetReadOnly() && hasSel);
-        menu->Enable(idUpperCase, !control->GetReadOnly() && hasSel);
-        menu->Enable(idLowerCase, !control->GetReadOnly() && hasSel);
+        const bool hasSelection = !control->GetSelectionEmpty();
+        menu->Enable(idDelete, !control->GetReadOnly() && hasSelection);
+        menu->Enable(idUpperCase, !control->GetReadOnly() && hasSelection);
+        menu->Enable(idLowerCase, !control->GetReadOnly() && hasSelection);
     }
     else if (id == idBookmarks)
     {
@@ -2779,6 +2765,7 @@ wxMenu* cbEditor::CreateContextSubMenu(long id)
 // Adds menu items to context menu (both before and after loading plugins' items)
 void cbEditor::AddToContextMenu(wxMenu* popup,ModuleType type,bool pluginsdone)
 {
+    PluginManager *pluginManager = Manager::Get()->GetPluginManager();
     bool noeditor = (type != mtEditorManager);
     if (!pluginsdone)
     {
@@ -2791,22 +2778,44 @@ void cbEditor::AddToContextMenu(wxMenu* popup,ModuleType type,bool pluginsdone)
             if (Manager::Get()->GetConfigManager(_T("editor"))->ReadBool(_T("/folding/show_folds"), false))
                 folding = CreateContextSubMenu(idFolding);
         }
-        if (insert)
-        {
-            popup->Append(idInsert, _("Insert"), insert);
-            popup->AppendSeparator();
-        }
-        popup->Append(idSwapHeaderSource, _("Swap header/source"));
-        popup->Append(idOpenContainingFolder, _("Open containing folder"));
-        if (!noeditor)
-            popup->AppendSeparator();
 
         if (editsubmenu)
+        {
+            popup->Append(idCut, _("Cut"));
+            popup->Append(idCopy, _("Copy"));
+            popup->Append(idPaste, _("Paste"));
             popup->Append(idEdit, _("Edit"), editsubmenu);
+            popup->AppendSeparator();
+
+            cbStyledTextCtrl* control = GetControl();
+            const bool hasSelection = !control->GetSelectionEmpty();
+            popup->Enable(idCut, !control->GetReadOnly() && hasSelection);
+            popup->Enable(idCopy, hasSelection);
+
+            if (platform::gtk) // a wxGTK bug causes the triggering of unexpected events
+                popup->Enable(idPaste, !control->GetReadOnly());
+            else
+                popup->Enable(idPaste, !control->GetReadOnly() && control->CanPaste());
+            pluginManager->RegisterLastNonPluginMenuItem(idPaste);
+        }
+        if (insert)
+        {
+            popup->Append(idInsert, _("Insert/Refactor"), insert);
+            pluginManager->RegisterLastNonPluginMenuItem(idInsert);
+        }
         if (bookmarks)
+        {
             popup->Append(idBookmarks, _("Bookmarks"), bookmarks);
+            pluginManager->RegisterLastNonPluginMenuItem(idBookmarks);
+        }
         if (folding)
+        {
             popup->Append(idFolding, _("Folding"), folding);
+            pluginManager->RegisterLastNonPluginMenuItem(idFolding);
+        }
+
+        if (insert || bookmarks || folding)
+            popup->AppendSeparator();
     }
     else
     {
@@ -2814,40 +2823,7 @@ void cbEditor::AddToContextMenu(wxMenu* popup,ModuleType type,bool pluginsdone)
         {
             popup->InsertSeparator(0);
             popup->Insert(0, idOpenUrl, _("Open link in browser"));
-        }
-
-        wxMenu* splitMenu = new wxMenu;
-        splitMenu->Append(idSplitHorz, _("Horizontally (top-bottom)"));
-        splitMenu->Append(idSplitVert, _("Vertically (left-right)"));
-        splitMenu->AppendSeparator();
-        splitMenu->Append(idUnsplit, _("Unsplit"));
-        // enable/disable entries accordingly
-        bool isSplitHorz = m_pSplitter && m_pSplitter->GetSplitMode() == wxSPLIT_HORIZONTAL;
-        bool isSplitVert = m_pSplitter && m_pSplitter->GetSplitMode() == wxSPLIT_VERTICAL;
-        splitMenu->Enable(idSplitHorz, !isSplitHorz);
-        splitMenu->Enable(idSplitVert, !isSplitVert);
-        splitMenu->Enable(idUnsplit, isSplitHorz || isSplitVert);
-        popup->Append(idSplit, _("Split view"), splitMenu);
-
-        popup->Append(idProperties, _("Properties..."));
-
-        if (Manager::Get()->GetProjectManager()->GetActiveProject()) // project must be open
-        {
-            bool isAddRemoveEnabled = true;
-            isAddRemoveEnabled = Manager::Get()->GetProjectManager()->GetActiveProject()->GetCurrentlyCompilingTarget() == nullptr;
-            popup->AppendSeparator();
-
-            if (m_pProjectFile)
-            {
-                popup->Append(idRemoveFileFromProject, _("Remove file from project"));
-                popup->Enable(idRemoveFileFromProject, isAddRemoveEnabled);
-                popup->Append(idShowFileInProject,     _("Show file in the project tree"));
-            }
-            else
-            {
-                popup->Append(idAddFileToProject, _("Add file to active project"));
-                popup->Enable(idAddFileToProject, isAddRemoveEnabled);
-            }
+            pluginManager->RegisterFindMenuItems(true, 2);
         }
         // remove "Insert/Empty" if more than one entry
         wxMenu* insert = nullptr;

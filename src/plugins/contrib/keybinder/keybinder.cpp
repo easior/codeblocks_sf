@@ -1356,7 +1356,7 @@ void wxKeyBinder::DetachAll()
     //-        delete (wxBinderEvtHandler*)m_arrHandlers.Item(i);
 
     for (int i=0; i < (int)m_arrHandlers.GetCount(); i++)
-     {
+    {
         wxBinderEvtHandler* pHdlr = (wxBinderEvtHandler*)m_arrHandlers.Item(i);
         pwin = pHdlr->GetTargetWnd();     //+v0.4
         if  ( NOT winExists( pwin ) )
@@ -1367,12 +1367,15 @@ void wxKeyBinder::DetachAll()
             LOGIT( _T("WxKeyBinder:DetachAll:window NOT found %p <----------"), pwin); //+v0.4.6
             #endif
         }
-        #if LOGGING
-         if (pHdlr->GetTargetWnd())
-           LOGIT( _T("WxKeyBinder:DetachAll:Deleteing EvtHdlr for [%s] %p"), pwin->GetLabel().GetData(), pwin);     //+v0.4
-        #endif
-        delete pHdlr;
-     }
+        else //2018/03/19 a guess at stopping wxAwwert "where has the event handler gone?"
+        {
+            #if LOGGING
+             if (pHdlr->GetTargetWnd())
+               LOGIT( _T("WxKeyBinder:DetachAll:Deleteing EvtHdlr for [%s] %p"), pwin->GetLabel().GetData(), pwin);     //+v0.4
+            #endif
+            delete pHdlr;  //dtor calls RemoveEventHandler()
+        }
+    }
 
     // and clear the array
     m_arrHandlers.Clear();
@@ -1412,6 +1415,22 @@ void wxKeyBinder::OnChar(wxKeyEvent &event, wxEvtHandler *next)
         event.Skip();
         return;
     }
+    // Let wxWidgets handle menu checkable items //(ICC 2018/03/21)
+    // View menu check items are being ignored once unchecked.
+    // UpdateUI isn't called to maintain the check status.
+    // Attempting to programmatically re-check no longer works.
+    // This means that secondary hotkeys for check menu items are ineffective.
+    // Cf, https://sourceforge.net/p/codeblocks/tickets/273/
+    wxMenuBar* pMenuBar = Manager::Get()->GetAppFrame()->GetMenuBar();
+    wxMenuItem* pMenuItem = p ? pMenuBar->FindItem(p->m_nId) : nullptr;
+    if (pMenuItem and pMenuItem->IsCheckable() )
+    {
+        wxLogDebug(wxT("wxKeyBinder::OnChar - ignoring a menu View event [%d]"),
+                    event.GetKeyCode());
+        event.Skip();
+        return;
+    }
+
     ////#if 0
     ////    // for some reason we need to avoid processing also of the ENTER keypresses...
     ////    if (p && p->IsBindTo(wxKeyBind(wxT("ENTER")))) {

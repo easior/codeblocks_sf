@@ -34,7 +34,7 @@ echo LIB root is $LIB_ROOT
 
 echo Copying files...
 cp -f $PLIST_ROOT/Info.plist        $CONT_ROOT
-cp -f $WX_ROOT/libwx_osx_cocoau-3.1.1.0.0.dylib $FRAMEWORK_ROOT
+cp -f $WX_ROOT/libwx_osx_cocoau-3.1.2.0.0.dylib $FRAMEWORK_ROOT
 cp -f $BIN_ROOT/codeblocks          $MACOS_ROOT/CodeBlocks
 cp -f $BIN_ROOT/cb_console_runner   $MACOS_ROOT
 # Optional executables:
@@ -51,7 +51,7 @@ fi
 cp -f $LIB_ROOT/*.dylib $MACOS_ROOT
 
 cd $FRAMEWORK_ROOT
-install_name_tool -id @executable_path/../Frameworks/libwx_osx_cocoau-3.1.1.0.0.dylib libwx_osx_cocoau-3.1.1.0.0.dylib
+install_name_tool -id @executable_path/../Frameworks/libwx_osx_cocoau-3.1.2.0.0.dylib libwx_osx_cocoau-3.1.2.0.0.dylib
 
 cd $MACOS_ROOT
 # @executable_path is a relative path to the location of foo.app,
@@ -59,11 +59,11 @@ cd $MACOS_ROOT
 echo Running install_name_tool...
 for filenameinecpt in `basename $(find . -iname '*.dylib')`; do
     install_name_tool -id @executable_path/$filenameinecpt $filenameinecpt
-    install_name_tool -change $WX_ROOT/libwx_osx_cocoau-3.1.1.0.0.dylib @executable_path/../Frameworks/libwx_osx_cocoau-3.1.1.0.0.dylib $filenameinecpt
+    install_name_tool -change $WX_ROOT/libwx_osx_cocoau-3.1.2.0.0.dylib @executable_path/../Frameworks/libwx_osx_cocoau-3.1.2.0.0.dylib $filenameinecpt
 done
 
 install_name_tool -change devel31/libcodeblocks.dylib @executable_path/libcodeblocks.dylib codeblocks
-install_name_tool -change $WX_ROOT/libwx_osx_cocoau-3.1.1.0.0.dylib @executable_path/../Frameworks/libwx_osx_cocoau-3.1.1.0.0.dylib codeblocks
+install_name_tool -change $WX_ROOT/libwx_osx_cocoau-3.1.2.0.0.dylib @executable_path/../Frameworks/libwx_osx_cocoau-3.1.2.0.0.dylib codeblocks
 
 echo Looping lib*.dylib files in MacOS...
 for dy_lib in $MACOS_ROOT/lib*.dylib
@@ -73,7 +73,7 @@ do
 done
 
 if [ -f cb_share_config ]; then
-    install_name_tool -change $WX_ROOT/libwx_osx_cocoau-3.1.1.0.0.dylib @executable_path/../Frameworks/libwx_osx_cocoau-3.1.1.0.0.dylib cb_share_config
+    install_name_tool -change $WX_ROOT/libwx_osx_cocoau-3.1.2.0.0.dylib @executable_path/../Frameworks/libwx_osx_cocoau-3.1.2.0.0.dylib cb_share_config
 fi
 
 echo Copying shared files...
@@ -88,7 +88,7 @@ echo Looping *.dylib files...
 #mv $RES_ROOT/share/codeblocks/plugins/*.dylib $RES_ROOT/share/codeblocks
 #for dy_lib in $RES_ROOT/share/codeblocks/*.dylib
 for dy_lib in $RES_ROOT/share/codeblocks/plugins/*.dylib; do
-    install_name_tool -change $WX_ROOT/libwx_osx_cocoau-3.1.1.0.0.dylib @executable_path/../Frameworks/libwx_osx_cocoau-3.1.1.0.0.dylib $dy_lib
+    install_name_tool -change $WX_ROOT/libwx_osx_cocoau-3.1.2.0.0.dylib @executable_path/../Frameworks/libwx_osx_cocoau-3.1.2.0.0.dylib $dy_lib
     install_name_tool -change devel31/libcodeblocks.dylib @executable_path/libcodeblocks.dylib $dy_lib
     filename=`basename $dy_lib`
     install_name_tool -id @executable_path/../Resources/share/codeblocks/plugins/$filename $dy_lib

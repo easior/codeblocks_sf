@@ -110,13 +110,14 @@ public:
     virtual wxString OnDocumentationLink(wxHtmlLinkEvent& event, bool& dismissPopup);
     virtual void DoAutocomplete(const CCToken& token, cbEditor* ed);
 
-    /** get the include paths setting (usually set by user for each C::B project)
-     * note that this function is only be called in CodeCompletion::DoCodeCompleteIncludes()
-     * if it finds some system level include search dirs which does not been scanned, it will start a
+    /** Get the include paths setting (usually set by user for each C::B project).
+     * If it finds some system level include search dirs which haven't been scanned, it will start a
      * a new thread(SystemHeadersThread).
      * @param project project info
      * @param buildTargets target info
      * @return the local include paths
+     * @note This function is only called from CodeCompletion::DoCodeCompleteIncludes().
+     * @note This function should be called with the m_SystemHeadersThreadCS locked.
      */
     wxArrayString GetLocalIncludeDirs(cbProject* project, const wxArrayString& buildTargets);
 
@@ -225,9 +226,8 @@ private:
     void OnParserEnd(wxCommandEvent& event);
 
     /** receive event from SystemHeadersThread */
-    void OnSystemHeadersThreadUpdate(CodeBlocksThreadEvent& event);
+    void OnSystemHeadersThreadMessage(CodeBlocksThreadEvent& event);
     void OnSystemHeadersThreadFinish(CodeBlocksThreadEvent& event);
-    void OnSystemHeadersThreadError(CodeBlocksThreadEvent& event);
 
     /** fill the tokens with correct code complete words
      * @param caretPos the location of caret

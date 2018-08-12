@@ -96,7 +96,7 @@ public:
 
     BuildLogger() : TextCtrlLogger(true), panel(0), sizer(0), progress(0) {}
 
-    void UpdateSettings()
+    void UpdateSettings() override
     {
         TextCtrlLogger::UpdateSettings();
 
@@ -105,7 +105,7 @@ public:
         style[error].SetFont(style[info].GetFont());
     }
 
-    virtual wxWindow* CreateControl(wxWindow* parent)
+    wxWindow* CreateControl(wxWindow* parent) override
     {
         panel = new wxPanel(parent);
 
@@ -417,6 +417,7 @@ void CompilerGCC::OnAttach()
     Manager::Get()->RegisterEventSink(cbEVT_PROJECT_OPEN,             new cbEventFunctor<CompilerGCC, CodeBlocksEvent>(this, &CompilerGCC::OnProjectLoaded));
     Manager::Get()->RegisterEventSink(cbEVT_PROJECT_CLOSE,            new cbEventFunctor<CompilerGCC, CodeBlocksEvent>(this, &CompilerGCC::OnProjectUnloaded));
     Manager::Get()->RegisterEventSink(cbEVT_PROJECT_TARGETS_MODIFIED, new cbEventFunctor<CompilerGCC, CodeBlocksEvent>(this, &CompilerGCC::OnProjectActivated));
+    Manager::Get()->RegisterEventSink(cbEVT_WORKSPACE_CLOSING_COMPLETE, new cbEventFunctor<CompilerGCC, CodeBlocksEvent>(this, &CompilerGCC::OnWorkspaceClosed));
 
     Manager::Get()->RegisterEventSink(cbEVT_COMPILE_FILE_REQUEST,     new cbEventFunctor<CompilerGCC, CodeBlocksEvent>(this, &CompilerGCC::OnCompileFileRequest));
 }
@@ -1364,10 +1365,13 @@ void CompilerGCC::DoClearTargetMenu()
     if (m_TargetMenu)
     {
         wxMenuItemList& items = m_TargetMenu->GetMenuItems();
-        while (wxMenuItemList::Node* node = items.GetFirst())
+        for (wxMenuItemList::iterator it = items.begin(); it != items.end(); )
         {
-            if (node->GetData())
-                m_TargetMenu->Delete(node->GetData());
+            wxMenuItem *item = *it;
+            // Make sure we increment valid iterator (Delete will invalidate it).
+            ++it;
+            if (item)
+                m_TargetMenu->Delete(item);
         }
 // mandrav: The following lines DO NOT clear the menu!
 //        wxMenuItemList& items = m_TargetMenu->GetMenuItems();
@@ -3396,6 +3400,12 @@ void CompilerGCC::OnProjectUnloaded(CodeBlocksEvent& event)
         m_pProject = 0;
 }
 
+void CompilerGCC::OnWorkspaceClosed(cb_unused CodeBlocksEvent& event)
+{
+    ClearLog();
+    DoClearErrors();
+}
+
 void CompilerGCC::OnCompileFileRequest(CodeBlocksEvent& event)
 {
     cbProject*  prj = event.GetProject();
@@ -3562,7 +3572,7 @@ void CompilerGCC::LogWarningOrError(CompilerLineType lt, cbProject* prj, const w
         m_pListLog->Append(errors, lv);
 
     // add to error keeping struct
-    m_Errors.AddError(lt, prj, filename, line.IsEmpty() ? 0 : atoi(wxSafeConvertWX2MB(line)), msg);
+    m_Errors.AddError(lt, prj, filename, line.IsEmpty() ? 0 : atoi(wxSafeConvertWX2MB(line.wc_str())), msg);
 }
 
 void CompilerGCC::LogMessage(const wxString& message, CompilerLineType lt, LogTarget log, bool forceErrorColour, bool isTitle, bool updateProgress)

@@ -52,11 +52,8 @@
 
 // when finished collecting all files, the thread are going to die, send this event
 long idSystemHeadersThreadFinish = wxNewId();
-// when collect all files under one path, send this event
-long idSystemHeadersThreadUpdate = wxNewId();
-// could not open the path, send an error event
-long idSystemHeadersThreadError  = wxNewId();
-
+// Message used logging.
+long idSystemHeadersThreadMessage = wxNewId();
 
 // internal class declaration of HeaderDirTraverser (implementation below)
 
@@ -65,13 +62,13 @@ class HeaderDirTraverser : public wxDirTraverser
 public:
     HeaderDirTraverser(wxThread* thread, wxCriticalSection* critSect,
                        SystemHeadersMap& headersMap, const wxString& searchDir);
-    virtual ~HeaderDirTraverser();
+    ~HeaderDirTraverser() override;
 
     /** call back function when we meet a file */
-    virtual wxDirTraverseResult OnFile(const wxString& filename);
+    wxDirTraverseResult OnFile(const wxString& filename) override;
 
     /** call back function when we meet a dir */
-    virtual wxDirTraverseResult OnDir(const wxString& dirname);
+    wxDirTraverseResult OnDir(const wxString& dirname) override;
 
 private:
     /** this function will be called every time we meet a file or a dir, and we count the file and
@@ -93,8 +90,23 @@ private:
      */
     const SystemHeadersMap& m_SystemHeadersMap;
 
-    /// Set of already visited directories (stored as absolute paths).
-    std::set<wxString>      m_VisitedDirs;
+#ifndef __WXMSW__
+    struct FileID
+    {
+        dev_t st_dev;
+        ino_t st_ino;
+
+        bool operator< (const FileID &f) const
+        {
+            if (st_dev == f.st_dev)
+                return st_ino < f.st_ino;
+            else
+                return st_dev<f.st_dev;
+        }
+    };
+    /// Set of already visited directories (stored as device id and inode).
+    std::set<FileID> m_VisitedDirsByID;
+#endif // __WXMSW__
 
     /* top level dir we are traversing header files */
     const wxString&         m_SearchDir;
@@ -144,36 +156,52 @@ void* SystemHeadersThread::Entry()
             }
         }
     }
+
     // collect header files in each dir, this is done by HeaderDirTraverser
     for (size_t i=0; i<dirs.GetCount(); ++i)
     {
+        wxStopWatch timer;
+        timer.Start();
         if ( TestDestroy() )
             break;
 
+        // Detect if this directory is for the file system root and skip it.
+        // The user probably doesn't want to wait for the whole disk to be scanned!
+        wxFileName dirName(dirs[i]);
+        if (dirName.IsAbsolute() && dirName.GetDirCount() == 0)
+            continue;
         // check the dir is ready for traversing
         wxDir dir(dirs[i]);
-        if ( !dir.IsOpened() )
+        if (!dir.IsOpened())
         {
-            CodeBlocksThreadEvent evt(wxEVT_COMMAND_MENU_SELECTED, idSystemHeadersThreadError);
+            CodeBlocksThreadEvent evt(wxEVT_COMMAND_MENU_SELECTED, idSystemHeadersThreadMessage);
             evt.SetClientData(this);
-            evt.SetString(wxString::Format(_T("SystemHeadersThread: Unable to open: %s"), dirs[i].wx_str()));
+            evt.SetString(wxString::Format(_T("SystemHeadersThread: Unable to open: %s"),
+                                           dirs[i].wx_str()));
             wxPostEvent(m_Parent, evt);
             continue;
         }
 
-        TRACE(_T("SystemHeadersThread: Launching dir traverser for: %s"), dirs[i].wx_str());
+        {
+            CodeBlocksThreadEvent evt(wxEVT_COMMAND_MENU_SELECTED, idSystemHeadersThreadMessage);
+            evt.SetClientData(this);
+            evt.SetString(wxString::Format(_T("SystemHeadersThread: Start traversing: %s"),
+                                           dirs[i].wx_str()));
+            wxPostEvent(m_Parent, evt);
+        }
 
         HeaderDirTraverser traverser(this, m_SystemHeadersThreadCS, m_SystemHeadersMap, dirs[i]);
         dir.Traverse(traverser, wxEmptyString, wxDIR_FILES | wxDIR_DIRS);
 
-        TRACE(_T("SystemHeadersThread: Dir traverser finished for: %s"), dirs[i].wx_str());
-
         if ( TestDestroy() )
             break;
 
-        CodeBlocksThreadEvent evt(wxEVT_COMMAND_MENU_SELECTED, idSystemHeadersThreadUpdate);
+        CodeBlocksThreadEvent evt(wxEVT_COMMAND_MENU_SELECTED, idSystemHeadersThreadMessage);
         evt.SetClientData(this);
-        evt.SetString(wxString::Format(_T("SystemHeadersThread: %s , %lu"), dirs[i].wx_str(), static_cast<unsigned long>(m_SystemHeadersMap[dirs[i]].size())));
+        evt.SetString(wxString::Format(_T("SystemHeadersThread: Traversing %s finished, found %lu headers; time: %.3lf sec"),
+                                       dirs[i].wx_str(),
+                                       static_cast<unsigned long>(m_SystemHeadersMap[dirs[i]].size()),
+                                       timer.Time()*0.001));
         wxPostEvent(m_Parent, evt);
     }
 
@@ -182,7 +210,10 @@ void* SystemHeadersThread::Entry()
         CodeBlocksThreadEvent evt(wxEVT_COMMAND_MENU_SELECTED, idSystemHeadersThreadFinish);
         evt.SetClientData(this);
         if (!dirs.IsEmpty())
-            evt.SetString(wxString::Format(_T("SystemHeadersThread: Total number of paths: %lu"), static_cast<unsigned long>(dirs.GetCount())));
+        {
+            evt.SetString(wxString::Format(_T("SystemHeadersThread: Total number of paths: %lu"),
+                                           static_cast<unsigned long>(dirs.GetCount())));
+        }
         wxPostEvent(m_Parent, evt);
     }
 
@@ -244,8 +275,29 @@ wxDirTraverseResult HeaderDirTraverser::OnDir(const wxString& dirname)
 
     AddLock(false); // false means we are adding a dir
 
-    wxString path = cbResolveSymLinkedDirPathRecursive(dirname);
+#ifndef __WXMSW__
+    // Use stat to identify unique files. This is needed to prevent loops caused by sym-linking.
+    // The st_dev and st_ino are enough to uniquely identify a file on Unix like systems.
+    // On windows we don't detect loops because they are lest frequent and harder to make, if at all
+    // possible.
+    struct stat s;
+    if (stat(dirname.utf8_str().data(), &s)==0)
+    {
+        FileID f;
+        f.st_dev = s.st_dev;
+        f.st_ino = s.st_ino;
 
+        if (m_VisitedDirsByID.find(f) != m_VisitedDirsByID.end())
+            return wxDIR_IGNORE;
+        m_VisitedDirsByID.insert(f);
+    }
+    else
+        return wxDIR_STOP;
+#endif // __WXMSW__
+
+    wxString path = cbResolveSymLinkedDirPathRecursive(dirname);
+    if (path.empty())
+        return wxDIR_IGNORE;
     if (path.Last() != wxFILE_SEP_PATH)
         path.Append(wxFILE_SEP_PATH);
 
@@ -278,8 +330,5 @@ wxDirTraverseResult HeaderDirTraverser::GetStatus(const wxString &path)
 {
     if (m_SystemHeadersMap.find(path) != m_SystemHeadersMap.end())
         return wxDIR_IGNORE;
-    if (m_VisitedDirs.find(path) != m_VisitedDirs.end())
-        return wxDIR_IGNORE;
-    m_VisitedDirs.insert(path);
     return wxDIR_CONTINUE;
 }

@@ -75,7 +75,7 @@ class cbFileDropTarget : public wxFileDropTarget
 {
 public:
     cbFileDropTarget(MainFrame *frame):m_frame(frame){}
-    virtual bool OnDropFiles(wxCoord x, wxCoord y, const wxArrayString& filenames)
+    bool OnDropFiles(wxCoord x, wxCoord y, const wxArrayString& filenames) override
     {
         if (!m_frame) return false;
         return m_frame->OnDropFiles(x,y,filenames);
@@ -1726,8 +1726,12 @@ bool MainFrame::Open(const wxString& filename, bool addToHistory)
     wxFileName fn(filename);
     fn.Normalize(); // really important so that two same files with different names are not loaded twice
     wxString name = fn.GetFullPath();
-    Manager::Get()->GetLogManager()->DebugLog(_T("Opening file ") + name);
+    LogManager *logger = Manager::Get()->GetLogManager();
+    logger->DebugLog(_T("Opening file ") + name);
     bool ret = OpenGeneric(name, addToHistory);
+    if (!ret)
+        logger->LogError(wxString::Format(wxT("Opening file '%s' failed!"), name.wx_str()));
+
     return ret;
 }
 
@@ -1922,6 +1926,8 @@ static void changeButtonLabel(wxButton &button, const wxString &text)
 void MainFrame::DoUpdateStatusBar()
 {
     if (!GetStatusBar())
+        return;
+    if (Manager::IsAppShuttingDown())
         return;
 
     cbEditor* ed = Manager::Get()->GetEditorManager()->GetBuiltinActiveEditor();

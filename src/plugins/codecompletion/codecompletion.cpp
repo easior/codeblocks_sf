@@ -514,9 +514,10 @@ CodeCompletion::CodeCompletion() :
     Connect(idReparsingTimer,       wxEVT_TIMER, wxTimerEventHandler(CodeCompletion::OnReparsingTimer)      );
     Connect(idEditorActivatedTimer, wxEVT_TIMER, wxTimerEventHandler(CodeCompletion::OnEditorActivatedTimer));
 
-    Connect(idSystemHeadersThreadUpdate,    wxEVT_COMMAND_MENU_SELECTED,CodeBlocksThreadEventHandler(CodeCompletion::OnSystemHeadersThreadUpdate));
-    Connect(idSystemHeadersThreadFinish,    wxEVT_COMMAND_MENU_SELECTED,CodeBlocksThreadEventHandler(CodeCompletion::OnSystemHeadersThreadFinish));
-    Connect(idSystemHeadersThreadError,     wxEVT_COMMAND_MENU_SELECTED,CodeBlocksThreadEventHandler(CodeCompletion::OnSystemHeadersThreadError) );
+    Connect(idSystemHeadersThreadMessage, wxEVT_COMMAND_MENU_SELECTED,
+            CodeBlocksThreadEventHandler(CodeCompletion::OnSystemHeadersThreadMessage));
+    Connect(idSystemHeadersThreadFinish, wxEVT_COMMAND_MENU_SELECTED,
+            CodeBlocksThreadEventHandler(CodeCompletion::OnSystemHeadersThreadFinish));
 }
 
 CodeCompletion::~CodeCompletion()
@@ -532,9 +533,10 @@ CodeCompletion::~CodeCompletion()
     Disconnect(idReparsingTimer,       wxEVT_TIMER, wxTimerEventHandler(CodeCompletion::OnReparsingTimer)      );
     Disconnect(idEditorActivatedTimer, wxEVT_TIMER, wxTimerEventHandler(CodeCompletion::OnEditorActivatedTimer));
 
-    Disconnect(idSystemHeadersThreadUpdate,    wxEVT_COMMAND_MENU_SELECTED, CodeBlocksThreadEventHandler(CodeCompletion::OnSystemHeadersThreadUpdate));
-    Disconnect(idSystemHeadersThreadFinish,    wxEVT_COMMAND_MENU_SELECTED, CodeBlocksThreadEventHandler(CodeCompletion::OnSystemHeadersThreadFinish));
-    Disconnect(idSystemHeadersThreadError,     wxEVT_COMMAND_MENU_SELECTED, CodeBlocksThreadEventHandler(CodeCompletion::OnSystemHeadersThreadError) );
+    Disconnect(idSystemHeadersThreadMessage, wxEVT_COMMAND_MENU_SELECTED,
+               CodeBlocksThreadEventHandler(CodeCompletion::OnSystemHeadersThreadMessage));
+    Disconnect(idSystemHeadersThreadFinish, wxEVT_COMMAND_MENU_SELECTED,
+               CodeBlocksThreadEventHandler(CodeCompletion::OnSystemHeadersThreadFinish));
 
     // clean up all the running thread
     while (!m_SystemHeadersThreads.empty())
@@ -1168,10 +1170,16 @@ void CodeCompletion::DoCodeCompleteIncludes(cbEditor* ed, int& tknStart, int tkn
 
     // #include < or #include "
     cbProject* project = m_NativeParser.GetProjectByEditor(ed);
+
+    // since we are going to access the m_SystemHeadersMap, we add a locker here
+    // here we collect all the header files names which is under "system include search dirs"
+#if wxCHECK_VERSION(3, 0, 0)
+    if (m_SystemHeadersThreadCS.TryEnter())
     {
-        // since we are going to access the m_SystemHeadersMap, we add a locker here
-        // here we collect all the header files names which is under "system include search dirs"
-        wxCriticalSectionLocker locker(m_SystemHeadersThreadCS);
+#else
+    {
+        m_SystemHeadersThreadCS.Enter();
+#endif // wxCHECK_VERSION(3, 0, 0)
         wxArrayString& incDirs = GetSystemIncludeDirs(project, project ? project->GetModified() : true);
         for (size_t i = 0; i < incDirs.GetCount(); ++i)
         {
@@ -1193,53 +1201,63 @@ void CodeCompletion::DoCodeCompleteIncludes(cbEditor* ed, int& tknStart, int tkn
                     break; // exit outer loop
             }
         }
+        m_SystemHeadersThreadCS.Leave();
     }
 
     // #include "
     if (project)
     {
-        wxArrayString buildTargets;
-        ProjectFile* pf = project ? project->GetFileByFilename(curFile, false) : 0;
-        if (pf)
-            buildTargets = pf->buildTargets;
-
-        const wxArrayString localIncludeDirs = GetLocalIncludeDirs(project, buildTargets);
-        for (FilesList::const_iterator it = project->GetFilesList().begin();
-                                       it != project->GetFilesList().end(); ++it)
+#if wxCHECK_VERSION(3, 0, 0)
+        if (m_SystemHeadersThreadCS.TryEnter())
         {
-            pf = *it;
-            if (pf && FileTypeOf(pf->relativeFilename) == ftHeader)
+#else
+        {
+            m_SystemHeadersThreadCS.Enter();
+#endif // wxCHECK_VERSION(3, 0, 0)
+            wxArrayString buildTargets;
+            ProjectFile* pf = project ? project->GetFileByFilename(curFile, false) : 0;
+            if (pf)
+                buildTargets = pf->buildTargets;
+
+            const wxArrayString localIncludeDirs = GetLocalIncludeDirs(project, buildTargets);
+            for (FilesList::const_iterator it = project->GetFilesList().begin();
+                                           it != project->GetFilesList().end(); ++it)
             {
-                wxString file = pf->file.GetFullPath();
-                wxString header;
-                for (size_t j = 0; j < localIncludeDirs.GetCount(); ++j)
+                pf = *it;
+                if (pf && FileTypeOf(pf->relativeFilename) == ftHeader)
                 {
-                    const wxString& dir = localIncludeDirs[j];
-                    if (file.StartsWith(dir))
+                    wxString file = pf->file.GetFullPath();
+                    wxString header;
+                    for (size_t j = 0; j < localIncludeDirs.GetCount(); ++j)
                     {
-                        header = file.Mid(dir.Len());
-                        header.Replace(wxT("\\"), wxT("/"));
-                        break;
+                        const wxString& dir = localIncludeDirs[j];
+                        if (file.StartsWith(dir))
+                        {
+                            header = file.Mid(dir.Len());
+                            header.Replace(wxT("\\"), wxT("/"));
+                            break;
+                        }
+                    }
+
+                    if (header.IsEmpty())
+                    {
+                        if (pf->buildTargets != buildTargets)
+                            continue;
+
+                        wxFileName fn(file);
+                        fn.MakeRelativeTo(curPath);
+                        header = fn.GetFullPath(wxPATH_UNIX);
+                    }
+
+                    if (header.StartsWith(filename))
+                    {
+                        files.insert(header);
+                        if (files.size() > maxFiles)
+                            break;
                     }
                 }
-
-                if (header.IsEmpty())
-                {
-                    if (pf->buildTargets != buildTargets)
-                        continue;
-
-                    wxFileName fn(file);
-                    fn.MakeRelativeTo(curPath);
-                    header = fn.GetFullPath(wxPATH_UNIX);
-                }
-
-                if (header.StartsWith(filename))
-                {
-                    files.insert(header);
-                    if (files.size() > maxFiles)
-                        break;
-                }
             }
+            m_SystemHeadersThreadCS.Leave();
         }
     }
 
@@ -1539,7 +1557,6 @@ wxArrayString CodeCompletion::GetLocalIncludeDirs(cbProject* project, const wxAr
             ++i;
         else
         {
-            wxCriticalSectionLocker locker(m_SystemHeadersThreadCS);
             if (m_SystemHeadersMap.find(dirs[i]) == m_SystemHeadersMap.end())
                 sysDirs.Add(dirs[i]);
             dirs.RemoveAt(i);
@@ -1609,6 +1626,11 @@ void CodeCompletion::GetAbsolutePath(const wxString& basePath, const wxArrayStri
             for (size_t j = 0; j < oldDirs.GetCount(); ++j)
                 fn.AppendDir(oldDirs[j]);
         }
+
+        // Detect if this directory is for the file system root and skip it. Sometimes macro
+        // replacements create such paths and we don't want to scan whole disks because of this.
+        if (fn.IsAbsolute() && fn.GetDirCount() == 0)
+            continue;
 
         const wxString path = fn.GetFullPath();
         if (dirs.Index(path) == wxNOT_FOUND)
@@ -2566,14 +2588,9 @@ void CodeCompletion::OnParserEnd(wxCommandEvent& event)
     event.Skip();
 }
 
-void CodeCompletion::OnSystemHeadersThreadUpdate(CodeBlocksThreadEvent& event)
+void CodeCompletion::OnSystemHeadersThreadMessage(CodeBlocksThreadEvent& event)
 {
-    if (!m_SystemHeadersThreads.empty())
-    {
-        SystemHeadersThread* thread = static_cast<SystemHeadersThread*>(event.GetClientData());
-        if (thread == m_SystemHeadersThreads.front())
-            CCLogger::Get()->DebugLog(event.GetString());
-    }
+    CCLogger::Get()->DebugLog(event.GetString());
 }
 
 void CodeCompletion::OnSystemHeadersThreadFinish(CodeBlocksThreadEvent& event)
@@ -2598,16 +2615,6 @@ void CodeCompletion::OnSystemHeadersThreadFinish(CodeBlocksThreadEvent& event)
         && m_NativeParser.Done() )
     {
         m_SystemHeadersThreads.front()->Run();
-    }
-}
-
-void CodeCompletion::OnSystemHeadersThreadError(CodeBlocksThreadEvent& event)
-{
-    if (!m_SystemHeadersThreads.empty())
-    {
-        SystemHeadersThread* thread = static_cast<SystemHeadersThread*>(event.GetClientData());
-        if (thread == m_SystemHeadersThreads.front())
-            CCLogger::Get()->DebugLog(event.GetString());
     }
 }
 

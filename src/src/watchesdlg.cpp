@@ -96,23 +96,28 @@ public:
         return wxT("cbDummyEditor");
     }
 
-    wxPGWindowList CreateControls(wxPropertyGrid* propgrid, wxPGProperty* property,
-                                  const wxPoint& pos, const wxSize& sz) const override
+    wxPGWindowList CreateControls(cb_unused wxPropertyGrid* propgrid,
+                                  cb_unused wxPGProperty* property,
+                                  cb_unused const wxPoint& pos,
+                                  cb_unused const wxSize& sz) const override
     {
         wxPGWindowList const list;
         return list;
     }
-    void UpdateControl(wxPGProperty* property, wxWindow* ctrl) const override {}
-    bool OnEvent(wxPropertyGrid* propgrid, wxPGProperty* property, wxWindow* wnd_primary, wxEvent& event) const override
+    void UpdateControl(cb_unused wxPGProperty* property, cb_unused wxWindow* ctrl) const override {}
+    bool OnEvent(cb_unused wxPropertyGrid* propgrid, cb_unused wxPGProperty* property,
+                 cb_unused wxWindow* wnd_primary, cb_unused wxEvent& event) const override
     {
         return false;
     }
 
-    bool GetValueFromControl( wxVariant& variant, wxPGProperty* property, wxWindow* ctrl ) const override
+    bool GetValueFromControl(cb_unused wxVariant& variant, cb_unused wxPGProperty* property,
+                             cb_unused wxWindow* ctrl ) const override
     {
         return false;
     }
-    void SetValueToUnspecified( wxPGProperty* property, wxWindow* ctrl ) const override {}
+    void SetValueToUnspecified(cb_unused wxPGProperty* property,
+                               cb_unused wxWindow* ctrl) const override {}
 };
 
 IMPLEMENT_DYNAMIC_CLASS(cbDummyEditor, wxPGEditor);
@@ -123,13 +128,13 @@ class cbTextCtrlAndButtonTooltipEditor : public wxPGTextCtrlAndButtonEditor
 {
     DECLARE_DYNAMIC_CLASS(cbTextCtrlAndButtonTooltipEditor)
 public:
-    virtual wxPG_CONST_WXCHAR_PTR GetName() const
+    wxPG_CONST_WXCHAR_PTR GetName() const override
     {
         return wxT("cbTextCtrlAndButtonTooltipEditor");
     }
 
-    virtual wxPGWindowList CreateControls(wxPropertyGrid* propgrid, wxPGProperty* property,
-                                          const wxPoint& pos, const wxSize& sz) const
+    wxPGWindowList CreateControls(wxPropertyGrid* propgrid, wxPGProperty* property,
+                                          const wxPoint& pos, const wxSize& sz) const override
     {
         wxPGWindowList const &list = wxPGTextCtrlAndButtonEditor::CreateControls(propgrid, property, pos, sz);
 
@@ -158,13 +163,13 @@ class WatchesProperty : public wxStringProperty
         }
 
         // Set editor to have button
-        virtual const wxPGEditor* DoGetEditorClass() const
+        const wxPGEditor* DoGetEditorClass() const override
         {
             return m_readonly ? watchesDummyEditor : watchesPropertyEditor;
         }
 
         // Set what happens on button click
-        virtual wxPGEditorDialogAdapter* GetEditorDialog() const;
+        wxPGEditorDialogAdapter* GetEditorDialog() const override;
 
         cb::shared_ptr<cbWatch> GetWatch() { return m_watch; }
         cb::shared_ptr<const cbWatch> GetWatch() const { return m_watch; }
@@ -183,7 +188,7 @@ class WatchRawDialogAdapter : public wxPGEditorDialogAdapter
         {
         }
 
-        virtual bool DoShowDialog(wxPropertyGrid* WXUNUSED(propGrid), wxPGProperty* property);
+        bool DoShowDialog(wxPropertyGrid* WXUNUSED(propGrid), wxPGProperty* property) override;
 
     protected:
 };
@@ -346,7 +351,7 @@ wxPGEditorDialogAdapter* WatchesProperty::GetEditorDialog() const
 class WatchesDropTarget : public wxTextDropTarget
 {
 public:
-    virtual bool OnDropText(wxCoord WXUNUSED(x), wxCoord WXUNUSED(y), const wxString& text)
+    bool OnDropText(wxCoord WXUNUSED(x), wxCoord WXUNUSED(y), const wxString& text) override
     {
         cbDebuggerPlugin *activeDebugger = Manager::Get()->GetDebuggerManager()->GetActiveDebugger();
         if (!activeDebugger->SupportsFeature(cbDebuggerFeature::Watches))
@@ -358,7 +363,7 @@ public:
         // because we use wxDrag_DefaultMove in ScintillaWX::StartDrag (seems to happen only on windows)
         return false;
     }
-    virtual wxDragResult OnDragOver(wxCoord WXUNUSED(x), wxCoord WXUNUSED(y), wxDragResult WXUNUSED(def))
+    wxDragResult OnDragOver(wxCoord WXUNUSED(x), wxCoord WXUNUSED(y), wxDragResult WXUNUSED(def)) override
     {
         return wxDragCopy;
     }

@@ -432,11 +432,6 @@ void ToolsPlus::OnRunTarget(wxCommandEvent& event)
 // constructor
 ToolsPlus::ToolsPlus()
 {
-    // Make sure our resources are available.
-    // In the generated boilerplate code we have no resources but when
-    // we add some, it will be nice that this code is in place already ;)
-    if (!Manager::LoadResource(_T("ToolsPlus.zip")))
-        NotifyMissingFile(_T("ToolsPlus.zip"));
     ConfigManager* cfg = Manager::Get()->GetConfigManager(_T("ShellExtensions"));
     m_ReUseToolsPage = cfg->ReadBool(_T("ReuseToolsPage"), false);
 }
@@ -746,7 +741,6 @@ void ToolsPlus::BuildModuleMenu(const ModuleType type, wxMenu* menu, const FileT
         wxFileName activefile(edMan->GetActiveEditor()->GetFilename());
         wxString filename=activefile.GetFullPath();
         wxString name=activefile.GetFullName();
-        size_t sep_pos=menu->GetMenuItemCount();
         size_t added=0;
         for (unsigned int i=0;i<m_ic.interps.size();i++)
         {

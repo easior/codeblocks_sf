@@ -49,26 +49,26 @@ END_EVENT_TABLE()
 class NullProjectManagerUI : public cbProjectManagerUI
 {
     public:
-        cbAuiNotebook* GetNotebook() { return nullptr; }
-        cbTreeCtrl* GetTree() { return nullptr; }
-        void RebuildTree() {}
-        void FreezeTree() {}
-        void UnfreezeTree(bool force = false) { (void)force; }
-        wxTreeItemId GetTreeSelection() { return wxTreeItemId(); }
-        void UpdateActiveProject(cbProject* WXUNUSED(oldProject), cbProject* WXUNUSED(newProject), bool WXUNUSED(refresh)) {}
-        void RemoveProject(cbProject* WXUNUSED(project)) {}
-        void BeginLoadingWorkspace() {}
-        void CloseWorkspace() {}
-        void FinishLoadingProject(cbProject* WXUNUSED(project), bool WXUNUSED(newAddition), FilesGroupsAndMasks* WXUNUSED(fileGroups)) {}
-        void FinishLoadingWorkspace(cbProject* WXUNUSED(activeProject), const wxString& WXUNUSED(workspaceTitle)) {}
-        void ShowFileInTree(ProjectFile& WXUNUSED(projectFile)) {}
-        bool QueryCloseAllProjects() { return true; }
-        bool QueryCloseProject(cbProject* WXUNUSED(proj), bool dontsavefiles = false)  { (void)dontsavefiles; return true; }
-        bool QueryCloseWorkspace()  { return true; }
-        int AskForBuildTargetIndex(cbProject* project = nullptr) { (void)project; return -1; }
-        wxArrayInt AskForMultiBuildTargetIndex(cbProject* project = nullptr) { (void)project; return wxArrayInt(); }
-        void ConfigureProjectDependencies(cbProject* base = nullptr) { (void)base; }
-        void SwitchToProjectsPage() {}
+        cbAuiNotebook* GetNotebook() override { return nullptr; }
+        cbTreeCtrl* GetTree() override { return nullptr; }
+        void RebuildTree() override {}
+        void FreezeTree() override {}
+        void UnfreezeTree(bool force = false) override { (void)force; }
+        wxTreeItemId GetTreeSelection() override { return wxTreeItemId(); }
+        void UpdateActiveProject(cbProject* WXUNUSED(oldProject), cbProject* WXUNUSED(newProject), bool WXUNUSED(refresh)) override {}
+        void RemoveProject(cbProject* WXUNUSED(project)) override {}
+        void BeginLoadingWorkspace() override {}
+        void CloseWorkspace() override {}
+        void FinishLoadingProject(cbProject* WXUNUSED(project), bool WXUNUSED(newAddition), FilesGroupsAndMasks* WXUNUSED(fileGroups)) override {}
+        void FinishLoadingWorkspace(cbProject* WXUNUSED(activeProject), const wxString& WXUNUSED(workspaceTitle)) override {}
+        void ShowFileInTree(ProjectFile& WXUNUSED(projectFile)) override {}
+        bool QueryCloseAllProjects() override { return true; }
+        bool QueryCloseProject(cbProject* WXUNUSED(proj), bool dontsavefiles = false) override  { (void)dontsavefiles; return true; }
+        bool QueryCloseWorkspace() override  { return true; }
+        int AskForBuildTargetIndex(cbProject* project = nullptr) override { (void)project; return -1; }
+        wxArrayInt AskForMultiBuildTargetIndex(cbProject* project = nullptr) override { (void)project; return wxArrayInt(); }
+        void ConfigureProjectDependencies(cbProject* base = nullptr) override { (void)base; }
+        void SwitchToProjectsPage() override {}
 };
 
 // class constructor
@@ -119,8 +119,11 @@ ProjectManager::~ProjectManager()
     }
     m_pProjects->Clear();
 
-    delete m_pProjects;m_pProjects = nullptr;
-    delete m_pFileGroups;m_pFileGroups = nullptr;
+    delete m_pProjects;
+    m_pProjects = nullptr;
+
+    delete m_pFileGroups;
+    m_pFileGroups = nullptr;
 
     delete m_ui;
     m_ui = nullptr;
@@ -546,7 +549,14 @@ bool ProjectManager::LoadWorkspace(const wxString& filename)
     if ( !BeginLoadingWorkspace() )
         return false;
 
-    m_pWorkspace = new cbWorkspace(filename);
+    cbWorkspace *temp = new cbWorkspace(filename);
+
+    // Do this after the c-tor call, because the c-tor calls methods which use call GetWorkspace
+    // and if the pointer is equal to nullptr the GetWorkspace will create a new one and we'll have
+    // a leak.
+    delete m_pWorkspace;
+    m_pWorkspace = temp;
+
     EndLoadingWorkspace();
 
     if (m_pProjects->GetCount() > 0 && !m_pActiveProject)

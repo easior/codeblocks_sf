@@ -232,8 +232,9 @@ bool wxScintilla::Create(wxWindow *parent,
     // STC doesn't support RTL languages at all
     SetLayoutDirection(wxLayout_LeftToRight);
 
-    // Rely on native double buffering by default.
-#if wxALWAYS_NATIVE_DOUBLE_BUFFER
+    // Rely on native double buffering by default, except under Mac where it
+    // doesn't work for some reason, see #18085.
+#if wxALWAYS_NATIVE_DOUBLE_BUFFER && !defined(__WXMAC__)
     SetBufferedDraw(false);
 #else
     SetBufferedDraw(true);
@@ -3033,7 +3034,7 @@ void wxScintilla::BraceBadLightIndicator(bool useSetting, int indicator)
 // The maxReStyle must be 0 for now. It may be defined in a future release.
 int wxScintilla::BraceMatch(int pos, int maxReStyle){
         wxASSERT_MSG(maxReStyle==0,
-                     "The second argument passed to BraceMatch should be 0");
+                     wxT("The second argument passed to BraceMatch should be 0"));
 
         return SendMsg(SCI_BRACEMATCH, pos, maxReStyle);
 }

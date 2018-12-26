@@ -220,6 +220,17 @@ void MacrosManager::RecalcVars(cbProject* project, EditorBase* editor, ProjectBu
     m_ActiveEditorLine     = -1;            // invalidate
     m_ActiveEditorColumn   = -1;            // invalidate
 
+    // Remove all variables for the old target from the macro map. This makes sure that target
+    // specific variables are reinitialized after every target in a multi target project, where
+    // targets are built one after the other. Also if a variable is not set in a target it won't
+    // be visible because it was set by a previous target in the build order.
+    if (m_LastTarget)
+    {
+        const StringHash& v = m_LastTarget->GetAllVars();
+        for (StringHash::const_iterator it = v.begin(); it != v.end(); ++it)
+            m_Macros.erase(it->first.Upper());
+    }
+
     if (editor)
     {
       // don't use pointer to editor here, because this might be the same,
@@ -505,7 +516,7 @@ void MacrosManager::ReplaceMacros(wxString& buffer, ProjectBuildTarget* target, 
     }
 
     int index = wxNOT_FOUND;
-    while ((index = buffer.Index(toNativePath)) != wxNOT_FOUND)
+    while ((index = buffer.Index(toNativePath.wx_str())) != wxNOT_FOUND)
     {
         int end = MatchBrace(buffer, index + toNativePath.Length() - 1);
         wxString content = buffer.Mid(index + toNativePath.Length(), end - index - toNativePath.Length());
@@ -513,7 +524,7 @@ void MacrosManager::ReplaceMacros(wxString& buffer, ProjectBuildTarget* target, 
         buffer.Replace(buffer.Mid(index, end - index + 1), UnixFilename(content), false);
     }
 
-    while ((index = buffer.Index(toUnixPath)) != wxNOT_FOUND)
+    while ((index = buffer.Index(toUnixPath.wx_str())) != wxNOT_FOUND)
     {
         int end = MatchBrace(buffer, index + toUnixPath.Length() - 1);
         wxString content = buffer.Mid(index + toUnixPath.Length(), end - index - toUnixPath.Length());
@@ -521,7 +532,7 @@ void MacrosManager::ReplaceMacros(wxString& buffer, ProjectBuildTarget* target, 
         buffer.Replace(buffer.Mid(index, end - index + 1), UnixFilename(content, wxPATH_UNIX), false);
     }
 
-    while ((index = buffer.Index(toWindowsPath)) != wxNOT_FOUND)
+    while ((index = buffer.Index(toWindowsPath.wx_str())) != wxNOT_FOUND)
     {
         int end = MatchBrace(buffer, index + toWindowsPath.Length() - 1);
         wxString content = buffer.Mid(index + toWindowsPath.Length(), end - index - toWindowsPath.Length());

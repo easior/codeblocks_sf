@@ -108,6 +108,7 @@ class DLLIMPORT EditorManager : public Mgr<EditorManager>, public wxEvtHandler
         bool UpdateProjectFiles(cbProject* project);
         bool SwapActiveHeaderSource();
         bool OpenContainingFolder();
+        void CopyFullPath();
         bool CloseActive(bool dontsave = false);
         bool Close(const wxString& filename, bool dontsave = false);
         bool Close(EditorBase* editor, bool dontsave = false);
@@ -165,6 +166,7 @@ class DLLIMPORT EditorManager : public Mgr<EditorManager>, public wxEvtHandler
         void OnSaveAll(wxCommandEvent& event);
         void OnSwapHeaderSource(wxCommandEvent& event);
         void OnOpenContainingFolder(wxCommandEvent& event);
+        void OnCopyFullPath(wxCommandEvent& event);
         void OnTabPosition(wxCommandEvent& event);
         void OnProperties(wxCommandEvent& event);
         void OnAddFileToProject(wxCommandEvent& event);
@@ -189,7 +191,7 @@ class DLLIMPORT EditorManager : public Mgr<EditorManager>, public wxEvtHandler
         EditorManager(cb_unused const EditorManager& rhs); // prevent copy construction
 
         EditorManager();
-        ~EditorManager();
+        ~EditorManager() override;
         void OnCheckForModifiedFiles(wxCommandEvent& event);
         bool IsHeaderSource(const wxFileName& candidateFile, const wxFileName& activeFile, FileType ftActive, bool& isCandidate);
         wxFileName FindHeaderSource(const wxArrayString& candidateFilesArray, const wxFileName& activeFile, bool& isCandidate);

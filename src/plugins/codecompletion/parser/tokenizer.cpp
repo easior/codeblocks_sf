@@ -274,6 +274,20 @@ bool Tokenizer::SkipWhiteSpace()
     return true;
 }
 
+bool Tokenizer::SkipBackslashBeforeEOL()
+{
+    if (CurrentChar() == _T('\\'))
+    {
+        wxChar next = NextChar();
+        if (next == _T('\r') || next == _T('\n'))
+        {
+            MoveToNextChar();
+            return true;
+        }
+    }
+    return false;
+}
+
 // only be called when we are in a C-string,
 // To check whether the current character is the real end of C-string
 // See SkipToStringEnd() for more details
@@ -399,7 +413,6 @@ wxString Tokenizer::ReadToEOL(bool stripUnneeded)
             // this while statement end up in one physical EOL '\n'
             while (NotEOF() && CurrentChar() != _T('\n'))
             {
-
                 // a macro definition has ending C++ comments, we should stop the parsing before
                 // the "//" chars, so that the doxygen document can be added correctly to previous
                 // added Macro definition token.
@@ -513,7 +526,6 @@ void Tokenizer::ReadParentheses(wxString& str)
             str << token;
             if (level == 0)
                 break;
-
         }
         else if (token == _T("*") || token == _T("&") )
         {
@@ -1117,7 +1129,12 @@ bool Tokenizer::CalcConditionExpression()
         // we run the while loop explicitly before calling the DoGetToken() function.
         // if m_TokenIndex pass the EOL, we should stop the calculating of preprocessor
         // condition
-        while (SkipWhiteSpace() || SkipComment())
+        // The SkipBackslashBeforeEOL() function call is needed here, because we want to
+        // handle multiply lines of #if xxxx condition, such as:
+        // /* line 0 */ #if defined(xxx) && backslash
+        // /* line 1 */ defined (yyy)
+        // the backslash in the line 0 should be skipped
+        while (SkipWhiteSpace() || SkipBackslashBeforeEOL() || SkipComment())
             ;
 
         if (m_TokenIndex >= m_BufferLen - untouchedBufferLen)
@@ -1609,12 +1626,12 @@ bool Tokenizer::ReplaceBufferText(const wxString& target, const Token* macro)
     }
 
     // Replacement backward
-    wxChar* p = const_cast<wxChar*>((const wxChar*)m_Buffer) + m_TokenIndex - len;
+    wxChar* p = const_cast<wxChar*>(m_Buffer.wx_str()) + m_TokenIndex - len;
     TRACE(_T("ReplaceBufferText() : <FROM>%s<TO>%s"), wxString(p, len).wx_str(), substitute.wx_str());
     // NOTE (ollydbg#1#): This function should be changed to a native wx function if wxString (wxWidgets
     // library) is built with UTF8 encoding for wxString. Luckily, both wx2.8.12 and wx 3.0 use the fixed length
     // (wchar_t) for the wxString encoding unit, so memcpy is safe here.
-    memcpy(p, (const wxChar*)target, len * sizeof(wxChar));
+    memcpy(p, target.wx_str(), len * sizeof(wxChar));
 
     // move the token index to the beginning of the substituted text
     m_TokenIndex -= len;
@@ -1956,6 +1973,20 @@ void Tokenizer::HandleDefines()
     wxString token = m_Lex; // read the token after #define
     if (token.IsEmpty())
         return;
+
+    // in case we have such macro definition, we need to skip the first backslash
+    // #define backslash
+    // MACROFUNCTION(x,y) backslash
+    // x y
+    if (token == _T("\\"))
+    {
+        while (SkipWhiteSpace() || SkipComment())
+            ;
+        Lex();
+        token = m_Lex; // read the token after "\\", this should be in the next line
+        if (token.IsEmpty())
+            return;
+    }
 
     // do *NOT* use m_Tokenizer.GetToken()
     // e.g.

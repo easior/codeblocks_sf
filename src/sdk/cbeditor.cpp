@@ -40,6 +40,8 @@
 #include "cbstyledtextctrl.h"
 #include "cbcolourmanager.h"
 
+#include <stack>
+
 #include <wx/fontutil.h>
 #include <wx/splitter.h>
 
@@ -1125,7 +1127,10 @@ void cbEditor::Split(cbEditor::SplitType split)
     UnderlineFoldedLines(mgr->ReadBool(_T("/folding/underline_folded_line"), true));
 
     if (m_pTheme)
-        m_pTheme->Apply(m_lang, m_pControl2);
+    {
+        m_pTheme->Apply(m_lang, m_pControl2, false, true);
+        SetLanguageDependentColours(*m_pControl2);
+    }
 
     // and make it a live copy of left control
     m_pControl2->SetDocPointer(m_pControl->GetDocPointer());
@@ -1217,10 +1222,9 @@ void cbEditor::Unsplit()
     Thaw();
 }
 
-// static
-wxColour cbEditor::GetOptionColour(const wxString& option, const wxColour _default)
+void cbEditor::SetLanguageDependentColours(cbStyledTextCtrl &control)
 {
-    return Manager::Get()->GetConfigManager(_T("editor"))->ReadColour(option, _default);
+    control.MarkerSetBackground(DEBUG_MARKER_HIGHLIGHT, control.GetCaretLineBackground());
 }
 
 void cbEditor::SetEditorStyle()
@@ -1233,11 +1237,13 @@ inline void OverrideUseTabsPerLanguage(cbStyledTextCtrl *control)
 {
     if (!control)
         return;
-    // override the use tab setting for Python files and Makefiles
+    // Override the use tab setting for languages which have explicit requirements about tab/space
+    // usage.
     int lexer = control->GetLexer();
     switch (lexer)
     {
         case wxSCI_LEX_PYTHON:
+        case wxSCI_LEX_YAML:
             control->SetUseTabs(false);
             break;
         case wxSCI_LEX_MAKEFILE:
@@ -1278,7 +1284,7 @@ void cbEditor::SetEditorStyleBeforeFileOpen()
 
     SetFoldingIndicator(mgr->ReadInt(_T("/folding/indicator"), 2));
 
-    SetLanguage( HL_AUTO );
+    SetLanguage(HL_AUTO, false);
 
     OverrideUseTabsPerLanguage(m_pControl);
     OverrideUseTabsPerLanguage(m_pControl2);
@@ -1315,8 +1321,6 @@ void cbEditor::InternalSetEditorStyleBeforeFileOpen(cbStyledTextCtrl* control)
     if (!control)
         return;
 
-    control->Colourise(0, -1);
-
     ConfigManager* mgr = Manager::Get()->GetConfigManager(_T("editor"));
 
     // setting the default editor font size to 10 point
@@ -1345,8 +1349,6 @@ void cbEditor::InternalSetEditorStyleBeforeFileOpen(cbStyledTextCtrl* control)
     control->SetCaretForeground(colours->GetColour(wxT("editor_caret")));
     control->SetCaretPeriod(mgr->ReadInt(_T("/caret/period"), 500));
     control->SetCaretLineVisible(mgr->ReadBool(_T("/highlight_caret_line"), false));
-    control->SetCaretLineBackground(GetOptionColour(_T("/highlight_caret_line_colour"), wxColour(0xFF, 0xFF, 0x00)));
-
     control->SetFoldMarginColour(true, colours->GetColour(wxT("editor_margin_chrome")));
     control->SetFoldMarginHiColour(true, colours->GetColour(wxT("editor_margin_chrome_highlight")));
 
@@ -1423,21 +1425,28 @@ void cbEditor::InternalSetEditorStyleBeforeFileOpen(cbStyledTextCtrl* control)
 
     const int caretBuffer = mgr->ReadInt(wxT("/caret_buffer"), 2);
     if (caretBuffer == 0)
+    {
         control->SetYCaretPolicy(wxSCI_CARET_EVEN, 0); // default
+        control->SetVisiblePolicy(wxSCI_CARET_EVEN, 0); // default
+    }
     else if (caretBuffer > 0 && caretBuffer <= 10)
     {
         // margin of N lines at top/bottom
-        control->SetYCaretPolicy(wxSCI_CARET_SLOP | wxSCI_CARET_STRICT | wxSCI_CARET_EVEN, caretBuffer);
+        control->SetYCaretPolicy(wxSCI_CARET_SLOP | wxSCI_CARET_STRICT | wxSCI_CARET_EVEN,
+                                 caretBuffer);
+        control->SetVisiblePolicy(wxSCI_CARET_SLOP | wxSCI_CARET_STRICT | wxSCI_CARET_EVEN,
+                                  caretBuffer);
     }
     else
     {
         // centred mode
         control->SetYCaretPolicy(wxSCI_CARET_STRICT | wxSCI_CARET_EVEN, 4);
+        control->SetVisiblePolicy(wxSCI_CARET_STRICT | wxSCI_CARET_EVEN, 4);
     }
 
     // gutter
     control->SetEdgeMode(mgr->ReadInt(_T("/gutter/mode"), 0));
-    control->SetEdgeColour(Manager::Get()->GetColourManager()->GetColour(wxT("editor_gutter")));
+    control->SetEdgeColour(colours->GetColour(wxT("editor_gutter")));
     control->SetEdgeColumn(mgr->ReadInt(_T("/gutter/column"), 80));
 
     control->StyleSetFont(wxSCI_STYLE_DEFAULT, font);
@@ -1496,7 +1505,7 @@ void cbEditor::InternalSetEditorStyleBeforeFileOpen(cbStyledTextCtrl* control)
     control->MarkerSetBackground(DEBUG_MARKER, wxColour(0xFF, 0xFF, 0x00));
 
     control->MarkerDefine(DEBUG_MARKER_HIGHLIGHT, DEBUG_STYLE_HIGHLIGHT);
-    control->MarkerSetBackground(DEBUG_MARKER_HIGHLIGHT, control->GetCaretLineBackground());
+    control->MarkerSetBackground(DEBUG_MARKER_HIGHLIGHT, wxColour(0xFF, 0xFF, 0x00));
 
     // 4.) Marker for Errors...
     control->MarkerDefine(ERROR_MARKER, ERROR_STYLE);
@@ -1600,12 +1609,18 @@ void cbEditor::InternalSetEditorStyleAfterFileOpen(cbStyledTextCtrl* control)
 
     // line numbering
     control->SetMarginType(C_LINE_MARGIN, wxSCI_MARGIN_NUMBER);
+
+    // As a final step colourise the document. This make sure that style and folding information is
+    // set on every line/character of the editor. If Colourise is called earlier restoring the
+    // folding of the editor might not work. Also this is probably slow for larger files, so it is
+    // best if we call it minimal number of times.
+    control->Colourise(0, -1);
 }
 
 void cbEditor::SetColourSet(EditorColourSet* theme)
 {
     m_pTheme = theme;
-    SetLanguage( m_lang );
+    SetLanguage(m_lang, true);
 }
 
 wxFontEncoding cbEditor::GetEncoding() const
@@ -1684,12 +1699,19 @@ bool cbEditor::Reload(bool detect_encoding)
 void cbEditor::Touch()
 {
     m_LastModified = wxDateTime::Now();
+    SetModified(true);
 }
 
-void cbEditor::SetLanguage(HighlightLanguage lang)
+void cbEditor::SetLanguage(HighlightLanguage lang, bool colourise)
 {
     if (m_pTheme)
-        m_lang = m_pTheme->Apply(this, lang);
+    {
+        m_lang = m_pTheme->Apply(this, lang, colourise);
+        if (m_pControl)
+            SetLanguageDependentColours(*m_pControl);
+        if (m_pControl2)
+            SetLanguageDependentColours(*m_pControl2);
+    }
     else
         m_lang = HL_AUTO;
 }
@@ -1802,7 +1824,10 @@ bool cbEditor::Save()
     NotifyPlugins(cbEVT_EDITOR_BEFORE_SAVE);
     m_pControl->EndUndoAction();
 
-    if ( !cbSaveToFile(m_Filename, m_pControl->GetText(), GetEncoding(), GetUseBom()) )
+    ConfigManager *cfg = Manager::Get()->GetConfigManager(wxT("app"));
+    const bool robustSave = cfg->ReadBool(wxT("/environment/robust_save"), true);
+
+    if (!cbSaveToFile(m_Filename, m_pControl->GetText(), GetEncoding(), GetUseBom(), robustSave))
     {
         wxString msg;
         msg.Printf(_("File %s could not be saved..."), GetFilename().c_str());
@@ -1878,7 +1903,7 @@ bool cbEditor::SaveAs()
     SetProjectFile(nullptr);
     //Manager::Get()->GetLogManager()->Log(mltDevDebug, "Filename=%s\nShort=%s", m_Filename.c_str(), m_Shortname.c_str());
     m_IsOK = true;
-    SetLanguage( HL_AUTO );
+    SetLanguage(HL_AUTO, true);
     SetModified(true);
     SetEditorStyleAfterFileOpen();
     OverrideUseTabsPerLanguage(m_pControl);
@@ -1964,101 +1989,168 @@ void cbEditor::AutoComplete()
     Manager::Get()->GetLogManager()->Log(_T("cbEditor::AutoComplete() is obsolete.\nUse AutoComplete(cbEditor &ed) from the Abbreviations plugin instead."));
 }
 
-void cbEditor::DoFoldAll(int fold)
+void cbEditor::DoFoldAll(FoldMode fold)
 {
     cbAssert(m_pControl);
     if (m_SplitType != stNoSplit)
         cbAssert(m_pControl2);
     cbStyledTextCtrl* ctrl = GetControl();
-    ctrl->Colourise(0, -1); // the *most* important part!
-    int count = ctrl->GetLineCount();
-    for (int i = 0; i <= count; ++i)
-        DoFoldLine(i, fold);
-}
 
-void cbEditor::DoFoldBlockFromLine(int line, int fold)
-{
-    cbAssert(m_pControl);
-    if (m_SplitType != stNoSplit)
-        cbAssert(m_pControl2);
-    cbStyledTextCtrl* ctrl = GetControl();
     ctrl->Colourise(0, -1); // the *most* important part!
-    int i, parent, maxLine, level, UnfoldUpto = line;
 
-    parent = ctrl->GetFoldParent(line);
-    level = ctrl->GetFoldLevel(parent);
-    /* The following code will check if the child is hidden
-    *  under parent before unfolding it
-    */
-    if (fold == 0)
+    if (fold != FoldMode::toggle)
     {
-        do
+        const int count = ctrl->GetLineCount();
+        for (int line = 0; line < count; ++line)
         {
-            if (!ctrl->GetFoldExpanded(parent))
-                UnfoldUpto = parent;
-            if (wxSCI_FOLDLEVELBASE == (level & wxSCI_FOLDLEVELNUMBERMASK))
-                break;
-            parent = ctrl->GetFoldParent(parent);
-            level = ctrl->GetFoldLevel(parent);
+            const int level = ctrl->GetFoldLevel(line);
+            if ((level & wxSCI_FOLDLEVELHEADERFLAG) == 0)
+                continue;
+
+            if (m_pData->mFoldingLimit)
+            {
+                const bool isExpanded = ctrl->GetFoldExpanded(line);
+
+                // Apply the folding level limit only if the current block will be
+                // folded (that means it's currently expanded), folding level limiter
+                // must be enabled of course. Unfolding will not be affected.
+                if (isExpanded && (fold == FoldMode::contract || fold == FoldMode::toggle))
+                {
+                    int levelNumber = (level & wxSCI_FOLDLEVELNUMBERMASK) - wxSCI_FOLDLEVELBASE;
+                    if (levelNumber > m_pData->mFoldingLimitLevel - 1)
+                        continue;
+                }
+            }
+
+            ctrl->FoldLine(line, int(fold));
         }
-        while (parent != -1);
     }
+    else
+    {
+        // Toggle implementation - we need this one because the implementation for fold/unfold
+        // doesn't work correctly - it expands parent folds when there is an expanded child fold.
+        // We want to toggle all fold points in the editor no matter what level are they at. If
+        // there is a folding limit we respect it for both contracting and expanding.
 
-    maxLine = ctrl->GetLastChild(line, -1);
+        struct FoldRange
+        {
+            FoldRange(int start, int end, bool hasContracted) :
+                start(start),
+                end(end),
+                hasContracted(hasContracted)
+            {}
 
-    for (i = UnfoldUpto; i <= maxLine; ++i)
-        DoFoldLine(i, fold);
+            int start, end;
+            bool hasContracted;
+        };
+        // We need to know if a parent fold has been contracted. For this we use a stack with the
+        // active folds at the line we are processing.
+        std::stack<FoldRange> parentFolds;
+
+        const int count = ctrl->GetLineCount();
+        for (int line = 0; line < count; ++line)
+        {
+            while (!parentFolds.empty() && parentFolds.top().end < line)
+                parentFolds.pop();
+
+            const int level = ctrl->GetFoldLevel(line);
+            if ((level & wxSCI_FOLDLEVELHEADERFLAG) == 0)
+                continue;
+            const int levelNumber = (level & wxSCI_FOLDLEVELNUMBERMASK) - wxSCI_FOLDLEVELBASE;
+            if (m_pData->mFoldingLimit)
+            {
+                // Apply folding level limit.
+                if (levelNumber > m_pData->mFoldingLimitLevel - 1)
+                    continue;
+            }
+
+            const bool toContract = ctrl->GetFoldExpanded(line);
+            const int lastChild = ctrl->GetLastChild(line, -1);
+
+            bool hasContracted;
+            if (toContract)
+                hasContracted = true;
+            else
+            {
+                if (parentFolds.empty())
+                    hasContracted = false;
+                else
+                    hasContracted = parentFolds.top().hasContracted;
+            }
+            parentFolds.push(FoldRange(line, lastChild, hasContracted));
+
+            if (toContract)
+            {
+                ctrl->SetFoldExpanded(line, false);
+                ctrl->HideLines(line + 1, lastChild);
+            }
+            else
+            {
+                ctrl->SetFoldExpanded(line, true);
+                // If there are contracted parent folds we must not show lines for child folds even
+                // if they are expanded. When the user does an expand operation for the parent
+                // Scintilla will make sure to show these lines.
+                if (!hasContracted)
+                    ctrl->ShowLines(line + 1, lastChild);
+            }
+        }
+    }
 }
 
-bool cbEditor::DoFoldLine(int line, int fold)
+void cbEditor::DoFoldBlockFromLine(int line, FoldMode fold, unsigned foldFlags)
 {
+    // Use static asserts to verify the constants are the same, because we don't want to include
+    // wxscintilla.h in cbeditor.h. This code is here, because we want the Foldmode to be private.
+    static_assert(int(cbEditor::FoldMode::contract) == wxSCI_FOLDACTION_CONTRACT, "Must match");
+    static_assert(int(cbEditor::FoldMode::expand) == wxSCI_FOLDACTION_EXPAND, "Must match");
+    static_assert(int(cbEditor::FoldMode::toggle) == wxSCI_FOLDACTION_TOGGLE, "Must match");
+
     cbAssert(m_pControl);
     if (m_SplitType != stNoSplit)
         cbAssert(m_pControl2);
     cbStyledTextCtrl* ctrl = GetControl();
+    if (!ctrl)
+        return;
+
+    // This is needed to update the folding information for the current view.
+    ctrl->Colourise(0, -1);
+
+    int foldLine;
     int level = ctrl->GetFoldLevel(line);
-
-    // The fold parameter is the type of folding action requested
-    // 0 = Unfold; 1 = Fold; 2 = Toggle folding.
-
-    // Check if the line is a header (fold point).
     if (level & wxSCI_FOLDLEVELHEADERFLAG)
+        foldLine = line;
+    else
     {
-        bool IsExpanded = ctrl->GetFoldExpanded(line);
-
-        // If a fold/unfold request is issued when the block is already
-        // folded/unfolded, ignore the request.
-        if (fold == 0 &&  IsExpanded) return true;
-        if (fold == 1 && !IsExpanded) return true;
-
-        // Apply the folding level limit only if the current block will be
-        // folded (that means it's currently expanded), folding level limiter
-        // must be enabled of course. Unfolding will not be affected.
-        if (m_pData->mFoldingLimit && IsExpanded)
-        {
-            if ((level & wxSCI_FOLDLEVELNUMBERMASK) > (wxSCI_FOLDLEVELBASE + m_pData->mFoldingLimitLevel-1))
-                return false;
-        }
-
-        ctrl->ToggleFold(line);
-        return true;
+        // If the line is not a block start line, find the block start. This makes it possible to
+        // toggle the folding when the cursor is in the middle of some block of code.
+        foldLine = ctrl->GetFoldParent(line);
+        if (foldLine == -1)
+            return;
     }
-    return false;
+    const bool isExpanded = ctrl->GetFoldExpanded(foldLine);
+
+    ctrl->FoldLine(foldLine, int(fold));
+
+    if (foldFlags & FoldFlags::ensureVisible)
+    {
+        if (fold == FoldMode::expand || (fold == FoldMode::toggle && !isExpanded))
+            ctrl->EnsureVisibleEnforcePolicy(line);
+    }
 }
 
 void cbEditor::FoldAll()
 {
-    DoFoldAll(1);
+    DoFoldAll(FoldMode::contract);
 }
 
 void cbEditor::UnfoldAll()
 {
-    DoFoldAll(0);
+    DoFoldAll(FoldMode::expand);
 }
 
 void cbEditor::ToggleAllFolds()
 {
-    DoFoldAll(2);
+    DoFoldAll(FoldMode::toggle);
 }
 
 void cbEditor::SetFoldingIndicator(int id)
@@ -2115,24 +2207,24 @@ void cbEditor::FoldBlockFromLine(int line)
 {
     if (line == -1)
         line = GetControl()->GetCurrentLine();
-    DoFoldBlockFromLine(line, 1);
+    DoFoldBlockFromLine(line, FoldMode::contract, FoldFlags::ensureVisible);
 }
 
 void cbEditor::UnfoldBlockFromLine(int line)
 {
     if (line == -1)
         line = GetControl()->GetCurrentLine();
-    DoFoldBlockFromLine(line, 0);
+    DoFoldBlockFromLine(line, FoldMode::expand, FoldFlags::ensureVisible);
 }
 
 void cbEditor::ToggleFoldBlockFromLine(int line)
 {
     if (line == -1)
         line = GetControl()->GetCurrentLine();
-    DoFoldBlockFromLine(line, 2);
+    DoFoldBlockFromLine(line, FoldMode::toggle, FoldFlags::ensureVisible);
 }
 
-void cbEditor::GotoLine(int line, bool centerOnScreen)
+void cbEditor::GotoLine(int line, cb_unused bool centerOnScreen)
 {
     cbStyledTextCtrl* control = GetControl();
 
@@ -2143,20 +2235,9 @@ void cbEditor::GotoLine(int line, bool centerOnScreen)
     // If the line or the following is a fold point it will be unfolded, in this way
     // when the line is a function declaration (or only contains the opening brace of it [yes, that happens sometimes] )
     // the body is shown.
-    DoFoldLine(line,0);
-    DoFoldLine(line+1,0);
+    DoFoldBlockFromLine(line, FoldMode::expand, FoldFlags::none);
+    DoFoldBlockFromLine(line+1, FoldMode::expand, FoldFlags::none);
 
-    if (centerOnScreen)
-    {
-        int linesOnScreen    = control->LinesOnScreen() >> 1;
-        int firstVisibleLine = control->GetFirstVisibleLine();
-        if (   (line <  firstVisibleLine)
-            || (line > (firstVisibleLine + 2*linesOnScreen)) )
-        {
-            control->GotoLine(line - linesOnScreen);
-            control->GotoLine(line + linesOnScreen);
-        }
-    }
     control->GotoLine(line);
 }
 

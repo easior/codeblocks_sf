@@ -75,7 +75,7 @@ class cbFileDropTarget : public wxFileDropTarget
 {
 public:
     cbFileDropTarget(MainFrame *frame):m_frame(frame){}
-    virtual bool OnDropFiles(wxCoord x, wxCoord y, const wxArrayString& filenames)
+    bool OnDropFiles(wxCoord x, wxCoord y, const wxArrayString& filenames) override
     {
         if (!m_frame) return false;
         return m_frame->OnDropFiles(x,y,filenames);
@@ -965,7 +965,7 @@ void MainFrame::CreateMenubar()
 
     int tmpidx;
     wxMenuBar* mbar=nullptr;
-    wxMenu *hl=nullptr, *tools=nullptr, *plugs=nullptr, *pluginsM=nullptr;
+    wxMenu *tools=nullptr, *plugs=nullptr, *pluginsM=nullptr;
     wxMenuItem *tmpitem=nullptr;
 
     wxXmlResource* xml_res = wxXmlResource::Get();
@@ -983,6 +983,7 @@ void MainFrame::CreateMenubar()
     tmpidx = mbar->FindMenu(_("&Edit"));
     if (tmpidx!=wxNOT_FOUND)
     {
+        wxMenu *hl=nullptr;
         mbar->FindItem(idEditHighlightModeText, &hl);
         if (hl)
         {
@@ -1726,8 +1727,12 @@ bool MainFrame::Open(const wxString& filename, bool addToHistory)
     wxFileName fn(filename);
     fn.Normalize(); // really important so that two same files with different names are not loaded twice
     wxString name = fn.GetFullPath();
-    Manager::Get()->GetLogManager()->DebugLog(_T("Opening file ") + name);
+    LogManager *logger = Manager::Get()->GetLogManager();
+    logger->DebugLog(_T("Opening file ") + name);
     bool ret = OpenGeneric(name, addToHistory);
+    if (!ret)
+        logger->LogError(wxString::Format(wxT("Opening file '%s' failed!"), name.wx_str()));
+
     return ret;
 }
 
@@ -1922,6 +1927,8 @@ static void changeButtonLabel(wxButton &button, const wxString &text)
 void MainFrame::DoUpdateStatusBar()
 {
     if (!GetStatusBar())
+        return;
+    if (Manager::IsAppShuttingDown())
         return;
 
     cbEditor* ed = Manager::Get()->GetEditorManager()->GetBuiltinActiveEditor();
@@ -2713,7 +2720,6 @@ void MainFrame::OnApplicationClose(wxCloseEvent& event)
 
     CodeBlocksEvent evt(cbEVT_APP_START_SHUTDOWN);
     Manager::Get()->ProcessEvent(evt);
-    Manager::Yield();
 
     m_InitiatedShutdown = true;
     Manager::BlockYields(true);
@@ -3735,7 +3741,7 @@ void MainFrame::OnEditHighlightMode(wxCommandEvent& event)
     // Highlightbutton
     if (m_pHighlightButton)
         changeButtonLabel(*m_pHighlightButton, colour_set->GetLanguageName(lang));
-    ed->SetLanguage(lang);
+    ed->SetLanguage(lang, true);
     Manager::Get()->GetCCManager()->NotifyPluginStatus();
 }
 
@@ -4219,7 +4225,11 @@ void MainFrame::OnEditMenuUpdateUI(wxUpdateUIEvent& event)
         {
             EditorColourSet* colour_set = ed->GetColourSet();
             if (colour_set)
-                mbar->Check(hl->FindItem(colour_set->GetLanguageName(ed->GetLanguage())), true);
+            {
+                int item = hl->FindItem(colour_set->GetLanguageName(ed->GetLanguage()));
+                if (item != wxNOT_FOUND)
+                    mbar->Check(item, true);
+            }
         }
     }
 
@@ -5004,7 +5014,7 @@ void MainFrame::OnRemoveLogWindow(CodeBlocksLogEvent& event)
     if (Manager::IsAppShuttingDown())
         return;
     if (event.window)
-        m_pInfoPane->RemoveNonLogger(event.window);
+        m_pInfoPane->DeleteNonLogger(event.window);
     else
         m_pInfoPane->DeleteLogger(event.logger);
 }
@@ -5088,28 +5098,23 @@ void MainFrame::OnHighlightMenu(cb_unused wxCommandEvent& event)
 
     wxMenu* hl = nullptr;
     GetMenuBar()->FindItem(idEditHighlightModeText, &hl);
-    wxArrayString langs = colour_set->GetAllHighlightLanguages();
+    if (!hl)
+        return;
 
     wxMenu mm;
-    mm.AppendRadioItem(idEditHighlightModeText, _("Plain text"),
-                       _("Switch highlighting mode for current document to \"Plain text\""));
-    Connect(hl->FindItem(_("Plain text")), -1, wxEVT_COMMAND_MENU_SELECTED,
-                (wxObjectEventFunction) (wxEventFunction) (wxCommandEventFunction)
-                &MainFrame::OnEditHighlightMode);
-    for (size_t i = 0; i < langs.GetCount(); ++i)
+    const wxMenuItemList &menuItems = hl->GetMenuItems();
+
+    for (size_t ii = 0; ii < menuItems.GetCount(); ++ii)
     {
-        if (i > 0 && !(i % 20))
+        if (ii > 0 && (ii % 20) == 0)
             mm.Break(); // break into columns every 20 items
-        mm.AppendRadioItem(hl->FindItem(langs[i]), langs[i],
-                    wxString::Format(_("Switch highlighting mode for current document to \"%s\""), langs[i].wx_str()));
-        Connect(hl->FindItem(langs[i]), -1, wxEVT_COMMAND_MENU_SELECTED,
-                (wxObjectEventFunction) (wxEventFunction) (wxCommandEventFunction)
-                &MainFrame::OnEditHighlightMode);
+
+        const wxMenuItem *item = menuItems[ii];
+        wxMenuItem *newItem = mm.Append(item->GetId(), item->GetItemLabel(), item->GetHelp(),
+                                        item->GetKind());
+        if (item->IsCheckable())
+            newItem->Check(item->IsChecked());
     }
-    int checkeditem = -1;
-    checkeditem = hl->FindItem(colour_set->GetLanguageName(ed->GetLanguage()));
-    if (checkeditem!=wxNOT_FOUND)
-        mm.Check(checkeditem,true);
 
     wxRect rect;
     GetStatusBar()->GetFieldRect(1, rect);

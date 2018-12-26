@@ -96,7 +96,7 @@ public:
 
     BuildLogger() : TextCtrlLogger(true), panel(0), sizer(0), progress(0) {}
 
-    void UpdateSettings()
+    void UpdateSettings() override
     {
         TextCtrlLogger::UpdateSettings();
 
@@ -105,7 +105,7 @@ public:
         style[error].SetFont(style[info].GetFont());
     }
 
-    virtual wxWindow* CreateControl(wxWindow* parent)
+    wxWindow* CreateControl(wxWindow* parent) override
     {
         panel = new wxPanel(parent);
 
@@ -417,6 +417,7 @@ void CompilerGCC::OnAttach()
     Manager::Get()->RegisterEventSink(cbEVT_PROJECT_OPEN,             new cbEventFunctor<CompilerGCC, CodeBlocksEvent>(this, &CompilerGCC::OnProjectLoaded));
     Manager::Get()->RegisterEventSink(cbEVT_PROJECT_CLOSE,            new cbEventFunctor<CompilerGCC, CodeBlocksEvent>(this, &CompilerGCC::OnProjectUnloaded));
     Manager::Get()->RegisterEventSink(cbEVT_PROJECT_TARGETS_MODIFIED, new cbEventFunctor<CompilerGCC, CodeBlocksEvent>(this, &CompilerGCC::OnProjectActivated));
+    Manager::Get()->RegisterEventSink(cbEVT_WORKSPACE_CLOSING_COMPLETE, new cbEventFunctor<CompilerGCC, CodeBlocksEvent>(this, &CompilerGCC::OnWorkspaceClosed));
 
     Manager::Get()->RegisterEventSink(cbEVT_COMPILE_FILE_REQUEST,     new cbEventFunctor<CompilerGCC, CodeBlocksEvent>(this, &CompilerGCC::OnCompileFileRequest));
 }
@@ -428,7 +429,8 @@ void CompilerGCC::OnRelease(bool appShutDown)
 
     SaveOptions();
     Manager::Get()->GetConfigManager(_T("compiler"))->Write(_T("/default_compiler"), CompilerFactory::GetDefaultCompilerID());
-    if (Manager::Get()->GetLogManager())
+    LogManager *logManager = Manager::Get()->GetLogManager();
+    if (logManager)
     {
         // for batch builds, the log is deleted by the manager
         if (!Manager::IsBatchBuild())
@@ -436,6 +438,18 @@ void CompilerGCC::OnRelease(bool appShutDown)
             CodeBlocksLogEvent evt(cbEVT_REMOVE_LOG_WINDOW, m_pLog);
             Manager::Get()->ProcessEvent(evt);
         }
+
+        {
+            // TODO: This is wrong. We need some automatic way for this to happen!!!
+            LogSlot &listSlot = logManager->Slot(m_ListPageIndex);
+            delete listSlot.icon;
+            listSlot.icon = nullptr;
+
+            LogSlot &slot = logManager->Slot(m_PageIndex);
+            delete slot.icon;
+            slot.icon = nullptr;
+        }
+
         m_pLog = 0;
 
         CodeBlocksLogEvent evt(cbEVT_REMOVE_LOG_WINDOW, m_pListLog);
@@ -1048,7 +1062,7 @@ wxString CompilerGCC::ProjectMakefile()
     return m_pProject->GetMakefile();
 }
 
-void CompilerGCC::ClearLog()
+void CompilerGCC::ClearLog(bool switchToLog)
 {
     if (m_IsWorkspaceOperation)
         return;
@@ -1056,8 +1070,11 @@ void CompilerGCC::ClearLog()
     if (IsProcessRunning())
         return;
 
-    CodeBlocksLogEvent evtSwitch(cbEVT_SWITCH_TO_LOG_WINDOW, m_pLog);
-    Manager::Get()->ProcessEvent(evtSwitch);
+    if (switchToLog)
+    {
+        CodeBlocksLogEvent evtSwitch(cbEVT_SWITCH_TO_LOG_WINDOW, m_pLog);
+        Manager::Get()->ProcessEvent(evtSwitch);
+    }
 
     if (m_pLog)
         m_pLog->Clear();
@@ -1256,18 +1273,22 @@ int CompilerGCC::DoRunQueue()
             LogMessage(cmd->message, cltNormal, ltFile);
     }
 
-    // log message
-    if (!cmd->message.IsEmpty())
-        LogMessage(cmd->message, cltNormal, ltMessages, false, false, true);
-
     if (cmd->command.IsEmpty())
     {
+        // log message
+        if (!cmd->message.IsEmpty())
+            LogMessage(cmd->message, cltNormal, ltMessages, false, false, true);
+
         int ret = DoRunQueue();
         delete cmd;
         return ret;
     }
     else if (cmd->command.StartsWith(_T("#run_script")))
     {
+        // log message
+        if (!cmd->message.IsEmpty())
+            LogMessage(cmd->message, cltNormal, ltMessages, false, false, true);
+
         // special "run_script" command
         wxString script = cmd->command.AfterFirst(_T(' '));
         if (script.IsEmpty())
@@ -1303,7 +1324,13 @@ int CompilerGCC::DoRunQueue()
         wxString newLibPath = cbGetDynamicLinkerPathForTarget(m_pProject, cmd->target);
         newLibPath = cbMergeLibPaths(oldLibPath, newLibPath);
         wxSetEnv(CB_LIBRARY_ENVVAR, newLibPath);
+        LogMessage(wxString(_("Set variable: ")) + CB_LIBRARY_ENVVAR wxT("=") + newLibPath, cltInfo);
     }
+
+    // log message here, so the logging for run executable commands is done after the log message
+    // for set variable.
+    if (!cmd->message.IsEmpty())
+        LogMessage(cmd->message, cltNormal, ltMessages, false, false, true);
 
     // special shell used only for build commands
     if (!cmd->isRun)
@@ -1364,10 +1391,13 @@ void CompilerGCC::DoClearTargetMenu()
     if (m_TargetMenu)
     {
         wxMenuItemList& items = m_TargetMenu->GetMenuItems();
-        while (wxMenuItemList::Node* node = items.GetFirst())
+        for (wxMenuItemList::iterator it = items.begin(); it != items.end(); )
         {
-            if (node->GetData())
-                m_TargetMenu->Delete(node->GetData());
+            wxMenuItem *item = *it;
+            // Make sure we increment valid iterator (Delete will invalidate it).
+            ++it;
+            if (item)
+                m_TargetMenu->Delete(item);
         }
 // mandrav: The following lines DO NOT clear the menu!
 //        wxMenuItemList& items = m_TargetMenu->GetMenuItems();
@@ -1561,7 +1591,7 @@ void CompilerGCC::DoPrepareQueue(bool clearLog)
 
         if (clearLog)
         {
-            ClearLog();
+            ClearLog(true);
             DoClearErrors();
         }
         // wxStartTimer();
@@ -1724,12 +1754,18 @@ void CompilerGCC::PrintBanner(BuildAction action, cbProject* prj, ProjectBuildTa
 
 void CompilerGCC::DoGotoNextError()
 {
+    CodeBlocksLogEvent eventSwitchLog(cbEVT_SWITCH_TO_LOG_WINDOW, m_pListLog);
+    Manager::Get()->ProcessEvent(eventSwitchLog);
+
     m_Errors.Next();
     m_pListLog->FocusError(m_Errors.GetFocusedError());
 }
 
 void CompilerGCC::DoGotoPreviousError()
 {
+    CodeBlocksLogEvent eventSwitchLog(cbEVT_SWITCH_TO_LOG_WINDOW, m_pListLog);
+    Manager::Get()->ProcessEvent(eventSwitchLog);
+
     m_Errors.Previous();
     m_pListLog->FocusError(m_Errors.GetFocusedError());
 }
@@ -2019,8 +2055,8 @@ int CompilerGCC::Run(ProjectBuildTarget* target)
         }
     }
 
-    Manager::Get()->GetLogManager()->Log(F(_("Executing: %s (in %s)"), cmd.wx_str(), m_CdRun.wx_str()), m_PageIndex);
-    m_CommandQueue.Add(new CompilerCommand(cmd, wxEmptyString, m_pProject, target, true));
+    const wxString &message = F(_("Executing: %s (in %s)"), cmd.wx_str(), m_CdRun.wx_str());
+    m_CommandQueue.Add(new CompilerCommand(cmd, message, m_pProject, target, true));
 
     m_pProject->SetCurrentlyCompilingTarget(0);
 
@@ -3390,6 +3426,12 @@ void CompilerGCC::OnProjectUnloaded(CodeBlocksEvent& event)
         m_pProject = 0;
 }
 
+void CompilerGCC::OnWorkspaceClosed(cb_unused CodeBlocksEvent& event)
+{
+    ClearLog(false);
+    DoClearErrors();
+}
+
 void CompilerGCC::OnCompileFileRequest(CodeBlocksEvent& event)
 {
     cbProject*  prj = event.GetProject();
@@ -3556,7 +3598,7 @@ void CompilerGCC::LogWarningOrError(CompilerLineType lt, cbProject* prj, const w
         m_pListLog->Append(errors, lv);
 
     // add to error keeping struct
-    m_Errors.AddError(lt, prj, filename, line.IsEmpty() ? 0 : atoi(wxSafeConvertWX2MB(line)), msg);
+    m_Errors.AddError(lt, prj, filename, line.IsEmpty() ? 0 : atoi(wxSafeConvertWX2MB(line.wc_str())), msg);
 }
 
 void CompilerGCC::LogMessage(const wxString& message, CompilerLineType lt, LogTarget log, bool forceErrorColour, bool isTitle, bool updateProgress)

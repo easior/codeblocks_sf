@@ -62,8 +62,10 @@ OccurrencesHighlighting::OccurrencesHighlighting():
         NotifyMissingFile(_T("occurrenceshighlighting.zip"));
 
     ColourManager* cm = Manager::Get()->GetColourManager();
-    cm->RegisterColour(_("Editor"), _("Highlight occurrence"),                wxT("editor_highlight_occurrence"),             *wxRED  );
+    cm->RegisterColour(_("Editor"), _("Highlight occurrence"),      wxT("editor_highlight_occurrence"), *wxRED);
+    cm->RegisterColour(_("Editor"), _("Highlight occurrence text"), wxT("editor_highlight_occurrence_text"), *wxWHITE);
     cm->RegisterColour(_("Editor"), _("Permanently highlighted occurrences"), wxT("editor_highlight_occurrence_permanently"), *wxGREEN);
+    cm->RegisterColour(_("Editor"), _("Permanently highlighted occurrences text"), wxT("editor_highlight_occurrence_permanently_text"), *wxBLACK);
 }
 
 // destructor
@@ -84,6 +86,12 @@ void OccurrencesHighlighting::OnAttach()
 
     EditorHooks::HookFunctorBase *editor_hook = new EditorHooks::HookFunctor<OccurrencesHighlighting>(this, &OccurrencesHighlighting::OnEditorHook);
     m_FunctorId = EditorHooks::RegisterHook(editor_hook);
+
+    typedef cbEventFunctor<OccurrencesHighlighting, CodeBlocksEvent> EditFunctor;
+    auto *handler = new EditFunctor(this, &OccurrencesHighlighting::OnEditorEvent);
+    Manager::Get()->RegisterEventSink(cbEVT_EDITOR_OPEN, handler);
+    handler = new EditFunctor(this, &OccurrencesHighlighting::OnEditorEvent);
+    Manager::Get()->RegisterEventSink(cbEVT_EDITOR_SPLIT, handler);
 
     m_pPanel = new OccurrencesPanel(Manager::Get()->GetAppWindow());
 
@@ -114,6 +122,8 @@ void OccurrencesHighlighting::OnRelease(bool appShutDown)
     // which means you must not use any of the SDK Managers
     // NOTE: after this function, the inherited member variable
     // m_IsAttached will be FALSE...
+
+    Manager::Get()->RemoveAllEventSinksFor(this);
 
     EditorHooks::UnregisterHook(m_FunctorId);
 
@@ -340,6 +350,11 @@ void OccurrencesHighlighting::RemoveSelected()
 void OccurrencesHighlighting::OnEditorHook(cbEditor* editor, wxScintillaEvent& event)
 {
     m_pHighlighter->Call(editor, event);
+}
+
+void OccurrencesHighlighting::OnEditorEvent(cb_unused CodeBlocksEvent& event)
+{
+    m_pHighlighter->TextsChanged();
 }
 
 cbConfigurationPanel* OccurrencesHighlighting::GetConfigurationPanel(wxWindow* parent)

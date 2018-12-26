@@ -74,7 +74,7 @@ class DebuggerInfoWindow : public wxScrollingDialog
 
 void DebuggerInfoCmd::ParseOutput(const wxString& output)
 {
-    DebuggerInfoWindow win(Manager::Get()->GetAppWindow(), m_Title, output);
+    DebuggerInfoWindow win(Manager::Get()->GetAppWindow(), m_Title.wx_str(), output);
     win.ShowModal();
 }
 
@@ -330,4 +330,6 @@ wxString CleanStringValue(wxString value)
         value.RemoveLast();
     return value;
 }
+
+DebuggerLanguage g_DebugLanguage = dl_Cpp;
 

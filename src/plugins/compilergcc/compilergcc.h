@@ -170,6 +170,7 @@ class CompilerGCC : public cbCompilerPlugin
         void OnProjectActivated(CodeBlocksEvent& event);
         void OnProjectLoaded(CodeBlocksEvent& event);
         void OnProjectUnloaded(CodeBlocksEvent& event);
+        void OnWorkspaceClosed(CodeBlocksEvent& event);
         void OnCompileFileRequest(CodeBlocksEvent& event);
         void OnGCCOutput(CodeBlocksEvent& event);
         void OnGCCError(CodeBlocksEvent& event);
@@ -189,7 +190,7 @@ class CompilerGCC : public cbCompilerPlugin
         FileTreeData* DoSwitchProjectTemporarily();
         ProjectBuildTarget* DoAskForTarget();
         int DoGUIAskForTarget();
-        void ClearLog();
+        void ClearLog(bool switchToLog);
         void PrepareCompileFile(wxFileName& file);
         void PrepareCompileFilePM(wxFileName& file);
         bool CheckProject();

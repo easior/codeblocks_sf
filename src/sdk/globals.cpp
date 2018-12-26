@@ -388,24 +388,30 @@ FileType FileTypeOf(const wxString& filename)
     // TODO (Morten#3#): This code should actually be a method of filegroups and masks or alike. So we collect all extension specific things in one place. As of now this would break ABI compatibilty with 08.02 so this should happen later.
     else
     {
-        ProjectManager *prjMgr = Manager::Get()->GetProjectManager();
-        if ( prjMgr )
-        {
-            const FilesGroupsAndMasks* fgm = prjMgr->GetFilesGroupsAndMasks();
-            // Since "ext" var has no "." prefixed, but FilesGropupsAndMasks uses
-            // dot notation(".ext"), prefix a '.' here.
-            wxString dotExt = _T(".") + ext;
-           if (fgm)
-            {
-               for (unsigned int i = 0; i != fgm->GetGroupsCount(); ++i)
-               {
-                    if (fgm->GetGroupName(i) == _T("Sources") && fgm->MatchesMask(dotExt, i))
-                        return ftSource;
-                    if (fgm->GetGroupName(i) == _T("Headers") && fgm->MatchesMask(dotExt, i))
-                        return ftHeader;
-               }
-            }
-        }
+        // This code breaks ABI compatibility as noted by (Morten#3#) above.
+        // Code commented out by (pecan 2018/04/15). See http://forums.codeblocks.org/index.php/topic,22576.0.html
+        // The user can perform an equivalent objective by:
+        // 1) Fetching FilesGroupsAndMasks and adding the file extention(s) to file masks in the appropriate group.
+        // 2) Using the cbEVT_FILE_ADDED event to set the added file(s) properties (eg., compile and link).
+
+        //ProjectManager *prjMgr = Manager::Get()->GetProjectManager();
+        //if ( prjMgr )
+        //{
+        //    const FilesGroupsAndMasks* fgm = prjMgr->GetFilesGroupsAndMasks();
+        //    // Since "ext" var has no "." prefixed, but FilesGropupsAndMasks uses
+        //    // dot notation(".ext"), prefix a '.' here.
+        //    wxString dotExt = _T(".") + ext;
+        //   if (fgm)
+        //    {
+        //       for (unsigned int i = 0; i != fgm->GetGroupsCount(); ++i)
+        //       {
+        //            if (fgm->GetGroupName(i) == _T("Sources") && fgm->MatchesMask(dotExt, i))
+        //                return ftSource;
+        //            if (fgm->GetGroupName(i) == _T("Headers") && fgm->MatchesMask(dotExt, i))
+        //                return ftHeader;
+        //       }
+        //    }
+        //}
     }
 
     return ftOther;
@@ -712,9 +718,10 @@ bool cbWrite(wxFile& file, const wxString& buff, wxFontEncoding encoding)
 
 // Writes a wxString to a file. Takes care of unicode and uses a temporary file
 // to save first and then it copies it over the original.
-bool cbSaveToFile(const wxString& filename, const wxString& contents, wxFontEncoding encoding, bool bom)
+bool cbSaveToFile(const wxString& filename, const wxString& contents, wxFontEncoding encoding,
+                  bool bom, bool robust)
 {
-    return Manager::Get()->GetFileManager()->Save(filename, contents, encoding, bom);
+    return Manager::Get()->GetFileManager()->Save(filename, contents, encoding, bom, robust);
 }
 
 // Save a TinyXML document correctly, even if the path contains unicode characters.
@@ -997,6 +1004,8 @@ bool cbResolveSymLinkedDirPath(wxString& dirpath)
 #ifdef _WIN32
     return false;
 #else
+    if (dirpath.empty())
+        return false;
     if (dirpath.Last() == wxFILE_SEP_PATH)
         dirpath.RemoveLast();
 
@@ -1030,9 +1039,9 @@ bool cbResolveSymLinkedDirPath(wxString& dirpath)
             }
 
             wxString fullPath = fileName.GetFullPath();
-            if (fullPath.Last() == wxT('.')) // this case should be handled because of a bug in wxWidgets
+            if (!fullPath.empty() && fullPath.Last() == wxT('.')) // this case should be handled because of a bug in wxWidgets
                 fullPath.RemoveLast();
-            if (fullPath.Last() == wxFILE_SEP_PATH)
+            if (fullPath.length() > 1 && fullPath.Last() == wxFILE_SEP_PATH)
                 fullPath.RemoveLast();
             dirpath = fullPath;
             return true;
@@ -1142,9 +1151,32 @@ SettingsIconsStyle GetSettingsIconsStyle()
     return SettingsIconsStyle(Manager::Get()->GetConfigManager(_T("app"))->ReadInt(_T("/environment/settings_size"), 0));
 }
 
+wxRect cbGetMonitorRectForWindow(wxWindow *window)
+{
+    wxRect monitorRect;
+    if (wxDisplay::GetCount() > 0)
+    {
+        int displayIdx = wxDisplay::GetFromWindow(window);
+        if (displayIdx == wxNOT_FOUND)
+            displayIdx = 0;
+        wxDisplay display(displayIdx);
+        monitorRect = display.GetClientArea();
+        // This is needed because on Linux the client area returned for the first monitor in a twin
+        // monitor setup with nVidia card is spanning the two monitors.
+        // The intersection function will return just the client for the specified monitor.
+        monitorRect = display.GetGeometry().Intersect(monitorRect);
+    }
+    else
+    {
+        int width, height;
+        wxDisplaySize(&width, &height);
+        monitorRect = wxRect(0, 0, width, height);
+    }
+    return monitorRect;
+}
+
 void PlaceWindow(wxTopLevelWindow *w, cbPlaceDialogMode mode, bool enforce)
 {
-
     if (!w)
         cbThrow(_T("Passed NULL pointer to PlaceWindow."));
 
@@ -1162,27 +1194,7 @@ void PlaceWindow(wxTopLevelWindow *w, cbPlaceDialogMode mode, bool enforce)
     else
         the_mode = (int) mode;
 
-    wxRect monitorRect;
-
-    if (wxDisplay::GetCount() > 0)
-    {
-        int displayIdx = wxDisplay::GetFromWindow(referenceWindow);
-        if (displayIdx == wxNOT_FOUND)
-            displayIdx = 0;
-        wxDisplay display(displayIdx);
-        monitorRect = display.GetClientArea();
-        // This is needed because on Linux the client area returned for the first monitor in a twin
-        // monitor setup with nVidia card is spanning the two monitors.
-        // The intersection function will return just the client for the specified monitor.
-        monitorRect = display.GetGeometry().Intersect(monitorRect);
-    }
-    else
-    {
-        int width, height;
-        wxDisplaySize(&width, &height);
-        monitorRect = wxRect(0, 0, width, height);
-    }
-
+    const wxRect monitorRect = cbGetMonitorRectForWindow(referenceWindow);
     wxRect windowRect = w->GetRect();
 
     switch(the_mode)

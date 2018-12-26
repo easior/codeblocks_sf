@@ -528,6 +528,48 @@ void DebuggerGDB::DoWatches()
     m_State.GetDriver()->UpdateWatches(m_localsWatch, m_funcArgsWatch, m_watches);
 }
 
+static wxString GetShellString()
+{
+    if (platform::windows)
+        return wxEmptyString;
+    wxString shell = Manager::Get()->GetConfigManager(_T("app"))->Read(_T("/console_shell"),
+                                                                       DEFAULT_CONSOLE_SHELL);
+    // GDB expects the SHELL variable's value to be a path to the shell's executable, so we need to
+    // remove all parameters and do some trimming.
+    shell.Trim(false);
+    wxString::size_type pos = shell.find(wxT(' '));
+    if (pos != wxString::npos)
+        shell.erase(pos);
+    shell.Trim();
+    return shell;
+}
+
+int DebuggerGDB::LaunchProcessWithShell(const wxString &cmd, wxProcess *process,
+                                        const wxString &cwd)
+{
+    wxString shell = GetShellString();
+#if wxCHECK_VERSION(3, 0, 0)
+    wxExecuteEnv execEnv;
+    execEnv.cwd = cwd;
+    // Read the current environment variables and then make changes to them.
+    wxGetEnvMap(&execEnv.env);
+    if (!shell.empty())
+    {
+        Log(wxString::Format(wxT("Setting SHELL to '%s'"), shell.wx_str()));
+        execEnv.env["SHELL"] = shell;
+    }
+    return wxExecute(cmd, wxEXEC_ASYNC, process, &execEnv);
+#else
+    if (!shell.empty())
+    {
+        Log(wxString::Format(wxT("Setting SHELL to '%s'"), shell.wx_str()));
+        wxSetEnv(wxT("SHELL"), shell);
+    }
+    (void)cwd;
+    return wxExecute(cmd, wxEXEC_ASYNC, process);
+#endif // !wxCHECK_VERSION(3, 0, 0)
+}
+
 int DebuggerGDB::LaunchProcess(const wxString& cmd, const wxString& cwd)
 {
     if (m_pProcess)
@@ -536,7 +578,7 @@ int DebuggerGDB::LaunchProcess(const wxString& cmd, const wxString& cwd)
     // start the gdb process
     m_pProcess = new PipedProcess(&m_pProcess, this, idGDBProcess, true, cwd);
     Log(_("Starting debugger: ") + cmd);
-    m_Pid = wxExecute(cmd, wxEXEC_ASYNC, m_pProcess);
+    m_Pid = LaunchProcessWithShell(cmd, m_pProcess, cwd);
 
 #ifdef __WXMAC__
     if (m_Pid == -1)
@@ -1935,7 +1977,8 @@ bool DebuggerGDB::ShowValueTooltip(int style)
     if (!GetActiveConfigEx().GetFlag(DebuggerConfiguration::EvalExpression))
         return false;
     if (style != wxSCI_C_DEFAULT && style != wxSCI_C_OPERATOR && style != wxSCI_C_IDENTIFIER &&
-        style != wxSCI_C_WORD2 && style != wxSCI_C_GLOBALCLASS)
+        style != wxSCI_C_WORD2 && style != wxSCI_C_GLOBALCLASS &&
+        style != wxSCI_F_IDENTIFIER)
     {
         return false;
     }
@@ -2113,19 +2156,50 @@ bool DebuggerGDB::SetWatchValue(cb::shared_ptr<cbWatch> watch, const wxString &v
 
     wxString full_symbol;
     cb::shared_ptr<cbWatch> temp_watch = watch;
-    while (temp_watch)
+    if (g_DebugLanguage == dl_Cpp)
     {
-        wxString symbol;
-        temp_watch->GetSymbol(symbol);
-        temp_watch = temp_watch->GetParent();
+        while (temp_watch)
+        {
+            wxString symbol;
+            temp_watch->GetSymbol(symbol);
+            temp_watch = temp_watch->GetParent();
 
-        if (symbol.find(wxT('*')) != wxString::npos || symbol.find(wxT('&')) != wxString::npos)
-            symbol = wxT('(') + symbol + wxT(')');
+            if (symbol.find(wxT('*')) != wxString::npos || symbol.find(wxT('&')) != wxString::npos)
+                symbol = wxT('(') + symbol + wxT(')');
 
-        if (full_symbol.empty())
-            full_symbol = symbol;
-        else
-            full_symbol = symbol + wxT('.') + full_symbol;
+            if (full_symbol.empty())
+                full_symbol = symbol;
+            else
+                full_symbol = symbol + wxT('.') + full_symbol;
+        }
+    }
+    else // Fortran language
+    {
+        while (temp_watch)
+        {
+            wxString symbol;
+            temp_watch->GetSymbol(symbol);
+            temp_watch = temp_watch->GetParent();
+
+            if (full_symbol.empty())
+                full_symbol = symbol;
+            else
+            {
+                if (full_symbol.at(0) == '(' && symbol.at(0) == '(')
+                {
+                    size_t sec = full_symbol.find(')');
+                    if (sec != wxString::npos && symbol.at(symbol.size()-1) == ')')
+                    {
+                        full_symbol = full_symbol.substr(0,sec) + wxT(',') + symbol.substr(1,symbol.size()-2) +
+                                      full_symbol.substr(sec);
+                    }
+                }
+                else if (full_symbol.at(0) == '(')
+                    full_symbol = symbol + full_symbol;
+                else
+                    full_symbol = symbol + wxT('%') + full_symbol;
+            }
+        }
     }
 
     DebuggerDriver* driver = m_State.GetDriver();
@@ -2240,4 +2314,10 @@ void DebuggerGDB::OnBuildTargetSelected(CodeBlocksEvent& event)
     // and that a project is loaded
     if (m_pProject && event.GetProject() == m_pProject)
         m_ActiveBuildTarget = event.GetBuildTargetName();
+}
+
+void DebuggerGDB::DetermineLanguage()
+{
+    if (m_State.HasDriver())
+        m_State.GetDriver()->DetermineLanguage();
 }

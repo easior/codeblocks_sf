@@ -160,9 +160,11 @@ void Autosave::OnTimer(wxTimerEvent& e)
 {
     if(e.GetId() == 10000)
     {
-        int method = Manager::Get()->GetConfigManager(_T("autosave"))->ReadInt(_T("method"));
-        bool allProjects = Manager::Get()->GetConfigManager(_T("autosave"))->ReadBool(_T("all_projects"), true);
-        bool doWorkspace = Manager::Get()->GetConfigManager(_T("autosave"))->ReadBool(_T("do_workspace"), true);
+        ConfigManager *cfg = Manager::Get()->GetConfigManager(wxT("autosave"));
+
+        const int method = cfg->ReadInt(_T("method"));
+        const bool allProjects = cfg->ReadBool(_T("all_projects"), true);
+        const bool doWorkspace = cfg->ReadBool(_T("do_workspace"), true);
         ProjectManager *pm = Manager::Get()->GetProjectManager();
         if(pm)// && pm->GetActiveProject())
         {
@@ -209,6 +211,9 @@ void Autosave::OnTimer(wxTimerEvent& e)
 
         if(em)
         {
+            ConfigManager *cfg = Manager::Get()->GetConfigManager(wxT("app"));
+            const bool robustSave = cfg->ReadBool(wxT("/environment/robust_save"), true);
+
             for(int i = 0; i < em->GetEditorsCount(); ++i)
             {
                 cbEditor* ed = em->GetBuiltinEditor(em->GetEditor(i));
@@ -220,7 +225,8 @@ void Autosave::OnTimer(wxTimerEvent& e)
                         case 0:
                         {
                             if(::wxRenameFile(fn.GetFullPath(), fn.GetFullPath() + _T(".bak")))
-                                cbSaveToFile(fn.GetFullPath(), ed->GetControl()->GetText(), ed->GetEncoding(), ed->GetUseBom());
+                                cbSaveToFile(fn.GetFullPath(), ed->GetControl()->GetText(),
+                                             ed->GetEncoding(), ed->GetUseBom(), robustSave);
                             break;
                         }
                         case 1:
@@ -230,7 +236,9 @@ void Autosave::OnTimer(wxTimerEvent& e)
                         }
                         case 2:
                         {
-                            cbSaveToFile(fn.GetFullPath() + _T(".save"), ed->GetControl()->GetText(), ed->GetEncoding(), ed->GetUseBom());
+                            cbSaveToFile(fn.GetFullPath() + _T(".save"),
+                                         ed->GetControl()->GetText(), ed->GetEncoding(),
+                                         ed->GetUseBom(), robustSave);
                             ed->SetModified(); // the "real" file has not been saved!
                             break;
                         }
@@ -263,7 +271,8 @@ void Autosave::OnTimer(wxTimerEvent& e)
 
                             tmp1.Printf(_T("%s/%s.1.%s"), backupDir.c_str(), fn.GetName().c_str(), fn.GetExt().c_str());
 
-                            cbSaveToFile(tmp1, ed->GetControl()->GetText(), ed->GetEncoding(), ed->GetUseBom());
+                            cbSaveToFile(tmp1, ed->GetControl()->GetText(), ed->GetEncoding(),
+                                         ed->GetUseBom(), robustSave);
                             ed->SetModified(); // the "real" file has not been saved!
                             break;
                         }

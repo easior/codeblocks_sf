@@ -139,14 +139,6 @@ ThreadSearch::ThreadSearch()
               m_SplitterMode(wxSPLIT_VERTICAL),
               m_FileSorting(InsertIndexManager::SortByFilePath)
 {
-    // Make sure our resources are available.
-    // In the generated boilerplate code we have no resources but when
-    // we add some, it will be nice that this code is in place already ;)
-    // ThreadSearch plugin has no resources in zip
-    if(!Manager::LoadResource(_T("ThreadSearch.zip")))
-    {
-        NotifyMissingFile(_T("ThreadSearch.zip"));
-    }
 }
 
 // destructor
@@ -765,15 +757,7 @@ bool ThreadSearch::GetCursorWord(wxString& sWord)
         if (!word.IsEmpty()) // Avoid empty strings
         {
             sWord.Clear();
-            while (--ws > 0)
-            {
-                const wxChar ch = control->GetCharAt(ws);
-                if (ch <= _T(' '))
-                    continue;
-                else if (ch == _T('~'))
-                    sWord << _T("~");
-                break;
-            }
+
             // m_SearchedWord will be used if 'Find occurrences' ctx menu is clicked
             sWord << word;
             wordFound = true;

@@ -718,9 +718,10 @@ bool cbWrite(wxFile& file, const wxString& buff, wxFontEncoding encoding)
 
 // Writes a wxString to a file. Takes care of unicode and uses a temporary file
 // to save first and then it copies it over the original.
-bool cbSaveToFile(const wxString& filename, const wxString& contents, wxFontEncoding encoding, bool bom)
+bool cbSaveToFile(const wxString& filename, const wxString& contents, wxFontEncoding encoding,
+                  bool bom, bool robust)
 {
-    return Manager::Get()->GetFileManager()->Save(filename, contents, encoding, bom);
+    return Manager::Get()->GetFileManager()->Save(filename, contents, encoding, bom, robust);
 }
 
 // Save a TinyXML document correctly, even if the path contains unicode characters.
@@ -1150,9 +1151,32 @@ SettingsIconsStyle GetSettingsIconsStyle()
     return SettingsIconsStyle(Manager::Get()->GetConfigManager(_T("app"))->ReadInt(_T("/environment/settings_size"), 0));
 }
 
+wxRect cbGetMonitorRectForWindow(wxWindow *window)
+{
+    wxRect monitorRect;
+    if (wxDisplay::GetCount() > 0)
+    {
+        int displayIdx = wxDisplay::GetFromWindow(window);
+        if (displayIdx == wxNOT_FOUND)
+            displayIdx = 0;
+        wxDisplay display(displayIdx);
+        monitorRect = display.GetClientArea();
+        // This is needed because on Linux the client area returned for the first monitor in a twin
+        // monitor setup with nVidia card is spanning the two monitors.
+        // The intersection function will return just the client for the specified monitor.
+        monitorRect = display.GetGeometry().Intersect(monitorRect);
+    }
+    else
+    {
+        int width, height;
+        wxDisplaySize(&width, &height);
+        monitorRect = wxRect(0, 0, width, height);
+    }
+    return monitorRect;
+}
+
 void PlaceWindow(wxTopLevelWindow *w, cbPlaceDialogMode mode, bool enforce)
 {
-
     if (!w)
         cbThrow(_T("Passed NULL pointer to PlaceWindow."));
 
@@ -1170,27 +1194,7 @@ void PlaceWindow(wxTopLevelWindow *w, cbPlaceDialogMode mode, bool enforce)
     else
         the_mode = (int) mode;
 
-    wxRect monitorRect;
-
-    if (wxDisplay::GetCount() > 0)
-    {
-        int displayIdx = wxDisplay::GetFromWindow(referenceWindow);
-        if (displayIdx == wxNOT_FOUND)
-            displayIdx = 0;
-        wxDisplay display(displayIdx);
-        monitorRect = display.GetClientArea();
-        // This is needed because on Linux the client area returned for the first monitor in a twin
-        // monitor setup with nVidia card is spanning the two monitors.
-        // The intersection function will return just the client for the specified monitor.
-        monitorRect = display.GetGeometry().Intersect(monitorRect);
-    }
-    else
-    {
-        int width, height;
-        wxDisplaySize(&width, &height);
-        monitorRect = wxRect(0, 0, width, height);
-    }
-
+    const wxRect monitorRect = cbGetMonitorRectForWindow(referenceWindow);
     wxRect windowRect = w->GetRect();
 
     switch(the_mode)

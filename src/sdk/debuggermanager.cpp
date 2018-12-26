@@ -617,11 +617,11 @@ public:
         {
             plugin->SendCommand(cmd, m_debug_log);
 
-            //If it already exists in the list, remove it and add it back at the end
+            // If it already exists in the list, remove it and add it as the first element of the wxComboBox list
             int index = m_command_entry->FindString(cmd);
             if (index != wxNOT_FOUND)
                 m_command_entry->Delete(index);
-            m_command_entry->Append(cmd);
+            m_command_entry->Insert(cmd, 0);
 
             m_command_entry->SetValue(wxEmptyString);
         }
@@ -984,6 +984,14 @@ TextCtrlLogger* DebuggerManager::GetLogger()
 
 void DebuggerManager::HideLogger()
 {
+    LogManager *logManager = Manager::Get()->GetLogManager();
+    if (logManager)
+    {
+        // TODO: This is wrong. We need some automatic way for this to happen!!!
+        LogSlot &slot = logManager->Slot(m_loggerIndex);
+        delete slot.icon;
+        slot.icon = nullptr;
+    }
 
     CodeBlocksLogEvent evt(cbEVT_REMOVE_LOG_WINDOW, m_logger);
     Manager::Get()->ProcessEvent(evt);

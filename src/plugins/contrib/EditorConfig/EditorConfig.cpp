@@ -34,11 +34,6 @@ END_EVENT_TABLE()
 
 EditorConfig::EditorConfig()
 {
-    // Make sure our resources are available.
-    // In the generated boilerplate code we have no resources but when
-    // we add some, it will be nice that this code is in place already ;)
-    if (!Manager::LoadResource(_T("EditorConfig.zip")))
-        NotifyMissingFile(_T("EditorConfig.zip"));
 
     // hook to project loading procedure
     ProjectLoaderHooks::HookFunctorBase* ec_hook =
@@ -264,12 +259,14 @@ bool EditorConfig::ApplyEditorSettings(EditorBase* eb)
     if (m_ECSettings[prj].indent < 0) /* set indent to tab_width here */
         control->SetIndent(control->GetTabWidth());
 
+    // This works only if in sync with wxscintilla.h
     if      (m_ECSettings[prj].eol_mode == wxSCI_EOL_CRLF)
         control->SetEOLMode(wxSCI_EOL_CRLF);
     else if (m_ECSettings[prj].eol_mode == wxSCI_EOL_CR)
         control->SetEOLMode(wxSCI_EOL_CR);
     else if (m_ECSettings[prj].eol_mode == wxSCI_EOL_LF)
         control->SetEOLMode(wxSCI_EOL_LF);
+    // else do nothing because its set to "use settings > editor"
 
     return true;
 }

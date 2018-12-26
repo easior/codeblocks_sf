@@ -135,15 +135,13 @@ void OpenFilesListPlugin::OnAttach()
     pm->RegisterEventSink(cbEVT_BUILDTARGET_SELECTED, new cbEventFunctor<OpenFilesListPlugin, CodeBlocksEvent>(this, &OpenFilesListPlugin::OnBuildTargetSelected));
 }
 
-void OpenFilesListPlugin::OnRelease(bool appShutDown)
+void OpenFilesListPlugin::OnRelease(cb_unused bool appShutDown)
 {
     // Write config
     ConfigManager* cfg = Manager::Get()->GetConfigManager(_T("open_files_list"));
     if (cfg)
         cfg->Write(_T("preserve_open_editors"), m_PreserveOpenEditors);
 
-    if (appShutDown)
-        return;
     // remove registered event sinks
     Manager::Get()->RemoveAllEventSinksFor(this);
 
@@ -155,6 +153,9 @@ void OpenFilesListPlugin::OnRelease(bool appShutDown)
     // finally destroy the tree
     m_pTree->Destroy();
     m_pTree = nullptr;
+
+    delete m_pImages;
+    m_pImages = nullptr;
 }
 
 void OpenFilesListPlugin::BuildMenu(wxMenuBar* menuBar)

@@ -119,8 +119,11 @@ ProjectManager::~ProjectManager()
     }
     m_pProjects->Clear();
 
-    delete m_pProjects;m_pProjects = nullptr;
-    delete m_pFileGroups;m_pFileGroups = nullptr;
+    delete m_pProjects;
+    m_pProjects = nullptr;
+
+    delete m_pFileGroups;
+    m_pFileGroups = nullptr;
 
     delete m_ui;
     m_ui = nullptr;
@@ -546,7 +549,14 @@ bool ProjectManager::LoadWorkspace(const wxString& filename)
     if ( !BeginLoadingWorkspace() )
         return false;
 
-    m_pWorkspace = new cbWorkspace(filename);
+    cbWorkspace *temp = new cbWorkspace(filename);
+
+    // Do this after the c-tor call, because the c-tor calls methods which use call GetWorkspace
+    // and if the pointer is equal to nullptr the GetWorkspace will create a new one and we'll have
+    // a leak.
+    delete m_pWorkspace;
+    m_pWorkspace = temp;
+
     EndLoadingWorkspace();
 
     if (m_pProjects->GetCount() > 0 && !m_pActiveProject)

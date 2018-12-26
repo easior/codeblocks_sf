@@ -429,7 +429,8 @@ void CompilerGCC::OnRelease(bool appShutDown)
 
     SaveOptions();
     Manager::Get()->GetConfigManager(_T("compiler"))->Write(_T("/default_compiler"), CompilerFactory::GetDefaultCompilerID());
-    if (Manager::Get()->GetLogManager())
+    LogManager *logManager = Manager::Get()->GetLogManager();
+    if (logManager)
     {
         // for batch builds, the log is deleted by the manager
         if (!Manager::IsBatchBuild())
@@ -437,6 +438,18 @@ void CompilerGCC::OnRelease(bool appShutDown)
             CodeBlocksLogEvent evt(cbEVT_REMOVE_LOG_WINDOW, m_pLog);
             Manager::Get()->ProcessEvent(evt);
         }
+
+        {
+            // TODO: This is wrong. We need some automatic way for this to happen!!!
+            LogSlot &listSlot = logManager->Slot(m_ListPageIndex);
+            delete listSlot.icon;
+            listSlot.icon = nullptr;
+
+            LogSlot &slot = logManager->Slot(m_PageIndex);
+            delete slot.icon;
+            slot.icon = nullptr;
+        }
+
         m_pLog = 0;
 
         CodeBlocksLogEvent evt(cbEVT_REMOVE_LOG_WINDOW, m_pListLog);
@@ -1049,7 +1062,7 @@ wxString CompilerGCC::ProjectMakefile()
     return m_pProject->GetMakefile();
 }
 
-void CompilerGCC::ClearLog()
+void CompilerGCC::ClearLog(bool switchToLog)
 {
     if (m_IsWorkspaceOperation)
         return;
@@ -1057,8 +1070,11 @@ void CompilerGCC::ClearLog()
     if (IsProcessRunning())
         return;
 
-    CodeBlocksLogEvent evtSwitch(cbEVT_SWITCH_TO_LOG_WINDOW, m_pLog);
-    Manager::Get()->ProcessEvent(evtSwitch);
+    if (switchToLog)
+    {
+        CodeBlocksLogEvent evtSwitch(cbEVT_SWITCH_TO_LOG_WINDOW, m_pLog);
+        Manager::Get()->ProcessEvent(evtSwitch);
+    }
 
     if (m_pLog)
         m_pLog->Clear();
@@ -1257,18 +1273,22 @@ int CompilerGCC::DoRunQueue()
             LogMessage(cmd->message, cltNormal, ltFile);
     }
 
-    // log message
-    if (!cmd->message.IsEmpty())
-        LogMessage(cmd->message, cltNormal, ltMessages, false, false, true);
-
     if (cmd->command.IsEmpty())
     {
+        // log message
+        if (!cmd->message.IsEmpty())
+            LogMessage(cmd->message, cltNormal, ltMessages, false, false, true);
+
         int ret = DoRunQueue();
         delete cmd;
         return ret;
     }
     else if (cmd->command.StartsWith(_T("#run_script")))
     {
+        // log message
+        if (!cmd->message.IsEmpty())
+            LogMessage(cmd->message, cltNormal, ltMessages, false, false, true);
+
         // special "run_script" command
         wxString script = cmd->command.AfterFirst(_T(' '));
         if (script.IsEmpty())
@@ -1304,7 +1324,13 @@ int CompilerGCC::DoRunQueue()
         wxString newLibPath = cbGetDynamicLinkerPathForTarget(m_pProject, cmd->target);
         newLibPath = cbMergeLibPaths(oldLibPath, newLibPath);
         wxSetEnv(CB_LIBRARY_ENVVAR, newLibPath);
+        LogMessage(wxString(_("Set variable: ")) + CB_LIBRARY_ENVVAR wxT("=") + newLibPath, cltInfo);
     }
+
+    // log message here, so the logging for run executable commands is done after the log message
+    // for set variable.
+    if (!cmd->message.IsEmpty())
+        LogMessage(cmd->message, cltNormal, ltMessages, false, false, true);
 
     // special shell used only for build commands
     if (!cmd->isRun)
@@ -1565,7 +1591,7 @@ void CompilerGCC::DoPrepareQueue(bool clearLog)
 
         if (clearLog)
         {
-            ClearLog();
+            ClearLog(true);
             DoClearErrors();
         }
         // wxStartTimer();
@@ -2029,8 +2055,8 @@ int CompilerGCC::Run(ProjectBuildTarget* target)
         }
     }
 
-    Manager::Get()->GetLogManager()->Log(F(_("Executing: %s (in %s)"), cmd.wx_str(), m_CdRun.wx_str()), m_PageIndex);
-    m_CommandQueue.Add(new CompilerCommand(cmd, wxEmptyString, m_pProject, target, true));
+    const wxString &message = F(_("Executing: %s (in %s)"), cmd.wx_str(), m_CdRun.wx_str());
+    m_CommandQueue.Add(new CompilerCommand(cmd, message, m_pProject, target, true));
 
     m_pProject->SetCurrentlyCompilingTarget(0);
 
@@ -3402,7 +3428,7 @@ void CompilerGCC::OnProjectUnloaded(CodeBlocksEvent& event)
 
 void CompilerGCC::OnWorkspaceClosed(cb_unused CodeBlocksEvent& event)
 {
-    ClearLog();
+    ClearLog(false);
     DoClearErrors();
 }
 

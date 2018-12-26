@@ -395,6 +395,9 @@ void EditorConfigurationDlg::CreateColoursSample()
     const bool hightlightCaretLine = XRCCTRL(*this, "chkHighlightCaretLine", wxCheckBox)->GetValue();
     m_TextColourControl->SetCaretLineVisible(hightlightCaretLine);
 
+    const bool showIndentGuides = XRCCTRL(*this, "chkShowIndentGuides", wxCheckBox)->GetValue();
+    m_TextColourControl->SetIndentationGuides(showIndentGuides ? wxSCI_IV_LOOKBOTH : wxSCI_IV_NONE);
+
     m_TextColourControl->MarkerDeleteAll(2);
     m_TextColourControl->MarkerDeleteAll(3);
     m_TextColourControl->MarkerDeleteAll(4);
@@ -410,13 +413,18 @@ void EditorConfigurationDlg::FillColourComponents()
 {
     wxListBox* colours = XRCCTRL(*this, "lstComponents", wxListBox);
     colours->Clear();
-    for (int i = 0; i < m_Theme->GetOptionCount(m_Lang); ++i)
+    int count = m_Theme->GetOptionCount(m_Lang);
+    if (count == 0)
+        return;
+
+    for (int i = 0; i < count; ++i)
     {
         OptionColour* opt = m_Theme->GetOptionByIndex(m_Lang, i);
         if (colours->FindString(opt->name) == -1)
             colours->Append(opt->name);
     }
-    colours->SetSelection(0);
+    if (colours->GetCount() > 0)
+        colours->SetSelection(0);
     ReadColours();
 }
 
@@ -425,11 +433,9 @@ void EditorConfigurationDlg::ApplyColours()
     if (m_TextColourControl && m_Theme)
     {
         wxFont fnt = XRCCTRL(*this, "lblEditorFont", wxStaticText)->GetFont();
-        if (m_TextColourControl)
-        {
-            m_TextColourControl->StyleSetFont(wxSCI_STYLE_DEFAULT,fnt);
-            m_Theme->Apply(m_Lang, m_TextColourControl, false, true);
-        }
+
+        m_TextColourControl->StyleSetFont(wxSCI_STYLE_DEFAULT,fnt);
+        m_Theme->Apply(m_Lang, m_TextColourControl, false, true);
     }
 }
 
@@ -621,6 +627,7 @@ void EditorConfigurationDlg::ChangeTheme()
     wxChoice* cmbLangs = XRCCTRL(*this, "cmbLangs", wxChoice);
     int sel = cmbLangs->GetSelection();
     cmbLangs->Clear();
+    cmbLangs->Append(_("Plain text"));
     wxArrayString langs = m_Theme->GetAllHighlightLanguages();
     for (unsigned int i = 0; i < langs.GetCount(); ++i)
     {

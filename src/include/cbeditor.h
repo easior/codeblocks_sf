@@ -324,9 +324,20 @@ class DLLIMPORT cbEditor : public EditorBase
         void MarkerPrevious(int marker);
         void MarkLine(int marker, int line);
 
-        void DoFoldAll(int fold); // 0=unfold, 1=fold, 2=toggle
-        void DoFoldBlockFromLine(int line, int fold); // 0=unfold, 1=fold, 2=toggle
-        bool DoFoldLine(int line, int fold); // 0=unfold, 1=fold, 2=toggle
+        enum class FoldMode : int
+        {
+            contract = 0, // wxSCI_FOLDACTION_CONTRACT
+            expand = 1, // wxSCI_FOLDACTION_EXPAND,
+            toggle = 2, //wxSCI_FOLDACTION_TOGGLE
+        };
+        enum FoldFlags : unsigned
+        {
+            none = 0x0,
+            ensureVisible = 0x2,
+        };
+
+        void DoFoldAll(FoldMode fold);
+        void DoFoldBlockFromLine(int line, FoldMode fold, unsigned foldFlags);
         void SetMarkerStyle(int marker, int markerType, wxColor fore, wxColor back);
         void UnderlineFoldedLines(bool underline);
         cbStyledTextCtrl* CreateEditor();

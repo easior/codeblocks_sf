@@ -545,12 +545,16 @@ void IncrementalSearch::OnTextChanged(wxCommandEvent& /*event*/)
     SearchText();
 }
 
-void IncrementalSearch::OnKillFocus(wxCommandEvent& /*event*/)
+void IncrementalSearch::OnKillFocus(wxCommandEvent& event)
 {
+    if (!m_SearchText.empty())
+        m_pChoice->SetStringValue(m_SearchText);
+
     if(m_pTextCtrl)
     {
         m_LastInsertionPoint = m_pTextCtrl->GetInsertionPoint();
     }
+    event.Skip();
 }
 
 void IncrementalSearch::VerifyPosition()
@@ -604,7 +608,6 @@ void IncrementalSearch::SearchText()
         m_pToolbar->EnableTool(XRCID("idIncSearchClear"), true);
         m_pToolbar->EnableTool(XRCID("idIncSearchPrev"), (m_flags & wxSCI_FIND_REGEXP) == 0);
         m_pToolbar->EnableTool(XRCID("idIncSearchNext"), true);
-        m_pChoice->SetStringValue(m_SearchText);
         DoSearch(m_NewPos);
     }
     else
@@ -631,6 +634,9 @@ void IncrementalSearch::OnClearText(wxCommandEvent& /*event*/)
 
 void IncrementalSearch::DoClearText()
 {
+    if (!m_SearchText.empty())
+        m_pChoice->SetStringValue(m_SearchText);
+
     m_pTextCtrl->Clear();
     SearchText();
 }
@@ -642,6 +648,9 @@ void IncrementalSearch::OnSearchPrev(wxCommandEvent& /*event*/)
 
 void IncrementalSearch::DoSearchPrev()
 {
+    if (!m_SearchText.empty())
+        m_pChoice->SetStringValue(m_SearchText);
+
     VerifyPosition();
     // (re-)define m_MinPos and m_MaxPos, they might have changed
     SetRange();
@@ -657,6 +666,9 @@ void IncrementalSearch::OnSearchNext(wxCommandEvent& /*event*/)
 
 void IncrementalSearch::DoSearchNext()
 {
+    if (!m_SearchText.empty())
+        m_pChoice->SetStringValue(m_SearchText);
+
     VerifyPosition();
     // start search from the next character
     // (re-)define m_MinPos and m_MaxPos, they might have changed

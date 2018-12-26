@@ -274,6 +274,20 @@ bool Tokenizer::SkipWhiteSpace()
     return true;
 }
 
+bool Tokenizer::SkipBackslashBeforeEOL()
+{
+    if (CurrentChar() == _T('\\'))
+    {
+        wxChar next = NextChar();
+        if (next == _T('\r') || next == _T('\n'))
+        {
+            MoveToNextChar();
+            return true;
+        }
+    }
+    return false;
+}
+
 // only be called when we are in a C-string,
 // To check whether the current character is the real end of C-string
 // See SkipToStringEnd() for more details
@@ -399,7 +413,6 @@ wxString Tokenizer::ReadToEOL(bool stripUnneeded)
             // this while statement end up in one physical EOL '\n'
             while (NotEOF() && CurrentChar() != _T('\n'))
             {
-
                 // a macro definition has ending C++ comments, we should stop the parsing before
                 // the "//" chars, so that the doxygen document can be added correctly to previous
                 // added Macro definition token.
@@ -1116,7 +1129,12 @@ bool Tokenizer::CalcConditionExpression()
         // we run the while loop explicitly before calling the DoGetToken() function.
         // if m_TokenIndex pass the EOL, we should stop the calculating of preprocessor
         // condition
-        while (SkipWhiteSpace() || SkipComment())
+        // The SkipBackslashBeforeEOL() function call is needed here, because we want to
+        // handle multiply lines of #if xxxx condition, such as:
+        // /* line 0 */ #if defined(xxx) && backslash
+        // /* line 1 */ defined (yyy)
+        // the backslash in the line 0 should be skipped
+        while (SkipWhiteSpace() || SkipBackslashBeforeEOL() || SkipComment())
             ;
 
         if (m_TokenIndex >= m_BufferLen - untouchedBufferLen)
@@ -1955,6 +1973,20 @@ void Tokenizer::HandleDefines()
     wxString token = m_Lex; // read the token after #define
     if (token.IsEmpty())
         return;
+
+    // in case we have such macro definition, we need to skip the first backslash
+    // #define backslash
+    // MACROFUNCTION(x,y) backslash
+    // x y
+    if (token == _T("\\"))
+    {
+        while (SkipWhiteSpace() || SkipComment())
+            ;
+        Lex();
+        token = m_Lex; // read the token after "\\", this should be in the next line
+        if (token.IsEmpty())
+            return;
+    }
 
     // do *NOT* use m_Tokenizer.GetToken()
     // e.g.

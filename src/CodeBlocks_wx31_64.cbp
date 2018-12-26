@@ -2472,9 +2472,6 @@
 		<Unit filename="plugins/xpmanifest/windowsxplooknfeel.h">
 			<Option target="XP look &amp; feel" />
 		</Unit>
-		<Unit filename="scripts/gdb_types.script">
-			<Option target="Debugger" />
-		</Unit>
 		<Unit filename="scripts/make_dist.script">
 			<Option target="src" />
 		</Unit>
@@ -2869,6 +2866,12 @@
 		<Unit filename="sdk/resources/global_uservars.xrc">
 			<Option target="sdk" />
 		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_A68k.sample">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_A68k.xml">
+			<Option target="scintilla" />
+		</Unit>
 		<Unit filename="sdk/resources/lexers/lexer_OgreCompositor.sample">
 			<Option target="scintilla" />
 		</Unit>
@@ -2893,6 +2896,12 @@
 		<Unit filename="sdk/resources/lexers/lexer_angelscript.xml">
 			<Option target="scintilla" />
 		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_autotools.sample">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_autotools.xml">
+			<Option target="scintilla" />
+		</Unit>
 		<Unit filename="sdk/resources/lexers/lexer_bash.sample">
 			<Option target="scintilla" />
 		</Unit>
@@ -2903,6 +2912,9 @@
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/resources/lexers/lexer_batch.xml">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_bibtex.sample">
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/resources/lexers/lexer_bibtex.xml">
@@ -2942,6 +2954,12 @@
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/resources/lexers/lexer_css.xml">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_cu.sample">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_cu.xml">
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/resources/lexers/lexer_d.sample">
@@ -2998,6 +3016,18 @@
 		<Unit filename="sdk/resources/lexers/lexer_html.xml">
 			<Option target="scintilla" />
 		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_ihex.sample">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_ihex.xml">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_inno.sample">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_inno.xml">
+			<Option target="scintilla" />
+		</Unit>
 		<Unit filename="sdk/resources/lexers/lexer_java.sample">
 			<Option target="scintilla" />
 		</Unit>
@@ -3032,6 +3062,12 @@
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/resources/lexers/lexer_make.xml">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_markdown.sample">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_markdown.xml">
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/resources/lexers/lexer_masm.sample">
@@ -3070,6 +3106,9 @@
 		<Unit filename="sdk/resources/lexers/lexer_perl.xml">
 			<Option target="scintilla" />
 		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_plain.xml">
+			<Option target="scintilla" />
+		</Unit>
 		<Unit filename="sdk/resources/lexers/lexer_postscript.sample">
 			<Option target="scintilla" />
 		</Unit>
@@ -3094,6 +3133,9 @@
 		<Unit filename="sdk/resources/lexers/lexer_properties.xml">
 			<Option target="scintilla" />
 		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_proto.xml">
+			<Option target="scintilla" />
+		</Unit>
 		<Unit filename="sdk/resources/lexers/lexer_python.sample">
 			<Option target="scintilla" />
 		</Unit>
@@ -3104,6 +3146,12 @@
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/resources/lexers/lexer_rc.xml">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_registry.sample">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_registry.xml">
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/resources/lexers/lexer_ruby.sample">
@@ -3130,6 +3178,18 @@
 		<Unit filename="sdk/resources/lexers/lexer_squirrel.xml">
 			<Option target="scintilla" />
 		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_srec.sample">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_srec.xml">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_tehex.sample">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_tehex.xml">
+			<Option target="scintilla" />
+		</Unit>
 		<Unit filename="sdk/resources/lexers/lexer_vbscript.sample">
 			<Option target="scintilla" />
 		</Unit>
@@ -3152,6 +3212,12 @@
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/resources/lexers/lexer_xml.xml">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_yaml.sample">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/resources/lexers/lexer_yaml.xml">
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/resources/new_from_template.xrc">
